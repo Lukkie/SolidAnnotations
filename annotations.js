@@ -3,12 +3,6 @@ copy the selected text to clipboard
 */
 var d = document;
 
-// Medium text selection pop-up
-// s = d.createElement('script');
-// s.type = 'text/javascript';
-// s.setAttribute('src','//cdn.jsdelivr.net/npm/medium-editor@latest/dist/js/medium-editor.min.js');
-// d.head.appendChild(s);
-
 // Font awesome CSS
 var s = d.createElement('link');
 s.href = "https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css";
@@ -78,33 +72,72 @@ function onSelection() {
         console.log("Selected text: " + selectedText);
     }
 }
-
-/*
-Add copySelection() as a listener to mouseup events.
-*/
 document.addEventListener("mouseup", onSelection);
+
+
+
 
 injectScript('//cdn.jsdelivr.net/npm/medium-editor@latest/dist/js/medium-editor.min.js')
     .then(() => {
+      return injectScript("https://cdnjs.cloudflare.com/ajax/libs/rangy/1.3.0/rangy-core.js");
+    })
+    .then(() => {
+      return injectScript("https://cdnjs.cloudflare.com/ajax/libs/rangy/1.3.0/rangy-classapplier.min.js");
+    })
+    .then(() => {
+        rangy.init();
+        var HighlighterButton = MediumEditor.Extension.extend({
+          name: 'highlighter',
+
+          init: function () {
+            this.button = this.document.createElement('button');
+            this.button.classList.add('medium-editor-action');
+            this.button.innerHTML = '<i class="fa fa-thumbs-up"></i>';
+            this.button.contentFA = '<i class="fa fa-thumbs-up"></i>';
+            this.button.title = ' Highlight'
+
+            this.classApplier = rangy.createClassApplier('highlight', {
+              elementTagName: 'mark',
+              normalize: true
+            });
+            this.on(this.button, 'click', this.handleClick.bind(this));
+
+
+          },
+
+          getButton: function () {
+            return this.button;
+          },
+
+          handleClick: function (event) {
+            this.classApplier.toggleSelection();
+
+            // Ensure the editor knows about an html change so watchers are notified
+            // ie: <textarea> elements depend on the editableInput event to stay synchronized
+            this.base.checkContentChanged();
+
+            console.log("Button clicked");
+          }
+        });
+
+
+        // var button = createHighlightButton('highlight', 'highlight');
         var editor = new MediumEditor(document.querySelectorAll('.slide'), {
           buttonLabels: 'fontawesome',
           disableEditing: true,
           spellcheck: false,
-          anchorPreview: false
+          anchorPreview: false,
+          extensions: {
+            //'highlight': new ANNO.U.Editor.Note({action:'highlight', label:'highlight'})
+            'highlighter': new HighlighterButton()
+          },
+          toolbar: {
+              buttons: ['highlighter'],
+              // buttons: ['highlight'],
+              allowMultiParagraphSelection: false
+          }
         });
-    }).catch(error => {
+    })
+    .catch(error => {
         console.log(error);
     });
-
-
-// open webslides
-// editor = new MediumEditor(document.querySelectorAll('.slide'), {
-//   disableEditing: true,
-//   spellcheck: false,
-//   anchorPreview: false
-// });
-
-// Doortrappers
-// editor = new MediumEditor(getSelectionTextAndContainerElement().containerElement, {
-//     //options
-// });
