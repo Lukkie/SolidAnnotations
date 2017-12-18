@@ -1,0 +1,1 @@
+javascript:(function(){window.hypothesisConfig=function(){return{showHighlights:true,appType:'bookmarklet'};};var%20d=document,s=d.createElement('script');s.type='text/javascript';s.setAttribute('src','https://www.dropbox.com/s/zwlda5bcjbwfxsf/annotations.js?raw=1');d.body.appendChild(s)})();
