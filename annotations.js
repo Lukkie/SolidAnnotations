@@ -1,6 +1,9 @@
-/*
-copy the selected text to clipboard
-*/
+/** Config **/
+var selector = '.slide';
+var contextLength = 32; // Based on dokieli; The number of characters (at most) to add for context
+var save_location = 'https://lukasvanhoucke.databox.me/Public/comments/';
+/**/
+
 var d = document;
 
 // Font awesome CSS
@@ -41,31 +44,12 @@ function injectScript(src) {
     });
 }
 
-// function getSelectionTextAndContainerElement() {
-//     var text = "", containerElement = null;
-//     if (typeof window.getSelection != "undefined") {
-//         var sel = window.getSelection();
-//         if (sel.rangeCount) {
-//             var node = sel.getRangeAt(0).commonAncestorContainer;
-//             containerElement = node.nodeType == 1 ? node : node.parentNode;
-//             text = sel.toString();
-//         }
-//     } else if (typeof document.selection != "undefined" &&
-//                document.selection.type != "Control") {
-//         var textRange = document.selection.createRange();
-//         containerElement = textRange.parentElement();
-//         text = textRange.text;
-//     }
-//     return {
-//         text: text,
-//         containerElement: containerElement
-//     };
-// }
+function htmlEntities(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 
+// Following function is for testing purposes
 function onSelection() {
-    // var selection = getSelectionTextAndContainerElement();
-    // var selectedText = selection.text.trim();
-    // var selectedContainerElement = selection.containerElement;
     var selectedText = window.getSelection().toString().trim();
 
     if (selectedText) {
@@ -79,6 +63,12 @@ document.addEventListener("mouseup", onSelection);
 
 injectScript('//cdn.jsdelivr.net/npm/medium-editor@latest/dist/js/medium-editor.min.js')
     .then(() => {
+      return injectScript("https://www.dropbox.com/s/ezo4ijj1m46d7vq/rdflib-0.12.2.min.js?raw=1");
+    })
+    .then(() => {
+      return injectScript("https://www.dropbox.com/s/kwm6x0v5d6dtds8/solid-client.js?raw=1");
+    })
+    .then(() => {
       return injectScript("https://cdnjs.cloudflare.com/ajax/libs/rangy/1.3.0/rangy-core.js");
     })
     .then(() => {
@@ -86,54 +76,96 @@ injectScript('//cdn.jsdelivr.net/npm/medium-editor@latest/dist/js/medium-editor.
     })
     .then(() => {
         rangy.init();
-        var HighlighterButton = MediumEditor.Extension.extend({
+        var solid = SolidClient;
+        var vocab = solid.vocab;
+        vocab.oa = ''
+
+        var HighlighterButton = MediumEditor.extensions.button.extend({
           name: 'highlighter',
 
+          tagNames: ['mark'], // nodeName which indicates the button should be 'active' when isAlreadyApplied() is called
+          contentDefault: '<b>Highlight</b>', // default innerHTML of the button
+          contentFA: '<i class="fa fa-lightbulb-o"></i>', // innerHTML of button when 'fontawesome' is being used
+          aria: 'Highlight', // used as both aria-label and title attributes
+          action: 'highlight', // used as the data-action attribute of the button
+
           init: function () {
-            this.button = this.document.createElement('button');
-            this.button.classList.add('medium-editor-action');
-            this.button.innerHTML = '<i class="fa fa-thumbs-up"></i>';
-            this.button.contentFA = '<i class="fa fa-thumbs-up"></i>';
-            this.button.title = ' Highlight'
+            MediumEditor.extensions.button.prototype.init.call(this);
 
             this.classApplier = rangy.createClassApplier('highlight', {
               elementTagName: 'mark',
               normalize: true
             });
-            this.on(this.button, 'click', this.handleClick.bind(this));
-
-
-          },
-
-          getButton: function () {
-            return this.button;
           },
 
           handleClick: function (event) {
-            this.classApplier.toggleSelection();
+            // this.classApplier.toggleSelection();
 
-            // Ensure the editor knows about an html change so watchers are notified
-            // ie: <textarea> elements depend on the editableInput event to stay synchronized
+
+
+            this.base.restoreSelection();
+            var range = MediumEditor.selection.getSelectionRange(this.document);
+            var selectedParentElement = this.base.getSelectedParentElement();
+            console.log('getSelectedParentElement:');
+            console.log(selectedParentElement);
+
+            // Determine selection and context
+            this.base.selectedDocument = this.document;
+            this.base.selection = MediumEditor.selection.getSelectionHtml(this.base.selectedDocument);
+            console.log('this.base.selection:');
+            console.log(this.base.selection);
+
+            var exact = this.base.selection;
+            var selectionState = MediumEditor.selection.exportSelection(selectedParentElement, this.document);
+            var start = selectionState.start;
+            var end = selectionState.end;
+            var prefixStart = Math.max(0, start - contextLength);
+            console.log('pS ' + prefixStart);
+            var prefix = selectedParentElement.textContent.substr(prefixStart, start - prefixStart);
+            console.log('-' + prefix + '-');
+            prefix = htmlEntities(prefix);
+
+            var suffixEnd = Math.min(selectedParentElement.textContent.length, end + contextLength);
+            console.log('sE ' + suffixEnd);
+            var suffix = selectedParentElement.textContent.substr(end, suffixEnd - end);
+            console.log('-' + suffix + '-');
+            suffix = htmlEntities(suffix);
+
+
+
+            // Create triples with solid
+            // var graph = $rdf.graph();
+            // var thisResource = $rdf.sym('');
+            // graph.add(thisResource, vocab.dct('title'), $rdf.lit(request.title));
+            // graph.add(thisResource, vocab.sioc('content'), $rdf.lit(request.value));
+            // graph.add(thisResource, vocab.sioc('about'), $rdf.lit(request.url)); // THIS IS THE WRONG TERM, but which one is the right one?
+            // var data = new $rdf.Serializer(graph).toN3(graph);
+
+
+
+
+
+
+
             this.base.checkContentChanged();
 
-            console.log("Button clicked");
           }
         });
 
 
         // var button = createHighlightButton('highlight', 'highlight');
-        var editor = new MediumEditor(document.querySelectorAll('.slide'), {
+        var editor = new MediumEditor(document.querySelectorAll(selector), {
+          // TODO: Editor is not centered because of the way Open Webslides is programmed
+          // (Try zooming in and out, slide stays same size, but position of editor changes)
           buttonLabels: 'fontawesome',
           disableEditing: true,
           spellcheck: false,
           anchorPreview: false,
           extensions: {
-            //'highlight': new ANNO.U.Editor.Note({action:'highlight', label:'highlight'})
             'highlighter': new HighlighterButton()
           },
           toolbar: {
               buttons: ['highlighter'],
-              // buttons: ['highlight'],
               allowMultiParagraphSelection: false
           }
         });
