@@ -3,6 +3,7 @@ Linked data annotations based on the Solid stack.
 
 ## Requirements
 - Node.js
+- Browserify (`npm install browserify -g`)
 
 ## Install as bookmarklet
 - Run `npm install`
