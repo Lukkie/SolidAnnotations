@@ -1,13 +1,15 @@
+/******************************IMPORTS ******************************/
 // Libraries
-var solid = require('solid-client'); // or require('solid') ?
-var rdf = require('rdflib');
-var ns = require('rdf-ns')(rdf)
-var MediumEditor = require('medium-editor');
-var rangy = require('rangy');
-var rangyClassApplier = require('rangy/lib/rangy-classapplier');
-
+const solid = require('solid-client'); // or require('solid') ?
+const rdf = require('rdflib');
+const ns = require('rdf-ns')(rdf)
+const MediumEditor = require('medium-editor');
+const rangy = require('rangy');
+const rangyClassApplier = require('rangy/lib/rangy-classapplier');
+const uuidv1 = require('uuid/v1');
 // Modules
-var util = require('./util.js');
+const util = require('./util.js');
+/********************************************************************/
 
 css_files = ["https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css", // font awesome
              "//cdn.jsdelivr.net/npm/medium-editor@latest/dist/css/medium-editor.min.css", // core medium editor CSS
@@ -63,10 +65,6 @@ var HighlighterButton = MediumEditor.extensions.button.extend({
   },
 
   handleClick: function (event) {
-    this.classApplier.toggleSelection();
-
-
-
     this.base.restoreSelection();
     var range = MediumEditor.selection.getSelectionRange(this.document);
     var selectedParentElement = this.base.getSelectedParentElement();
@@ -96,12 +94,57 @@ var HighlighterButton = MediumEditor.extensions.button.extend({
     suffix = htmlEntities(suffix);
 
 
-
     // Create triples with solid
+    var annotation = {
+      source: rdf.sym(window.location.href.split('#')[0]),
+      target: rdf.sym(window.location.href ),
+      author: rdf.sym('https://lukasvanhoucke.databox.me/profile/card#me'),
+      title: rdf.lit("Lukas Vanhoucke created an annotation", 'en'),
+      date: rdf.lit(new Date().toUTCString()),
+      exact: rdf.lit(exact, 'en'), // TODO: Language is not important here? Or is it 'required' for good RDF
+      prefix: rdf.lit(prefix, 'en'),
+      suffix: rdf.lit(suffix, 'en')
+      //comment_text: rdf.lit('Comment text goes here', 'en')
+    }
+    var save_location = 'https://lukasvanhoucke.databox.me/Public/Annotations';
+    var slug = uuidv1();
 
+    var thisResource = rdf.sym(save_location + '/' + slug); // saves url as NamedNode
+    var selector = rdf.sym(thisResource.uri + '#fragment-selector'); // TODO: Is there a more natural way of creating hash URIs
+    var text_quote_selector = rdf.sym(thisResource.uri + '#text-quote-selector');
 
+    var graph = rdf.graph(); // create an empty graph
 
+    // Uses WebAnnotations recommended ontologies
+    graph.add(thisResource, vocab.rdf('type'), vocab.oa('Annotation'));
+    graph.add(thisResource, vocab.oa('hasTarget'), annotation.target);
+    graph.add(thisResource, vocab.dct('creator'), annotation.author);
+    graph.add(thisResource, vocab.dct('created'), annotation.date);
+    graph.add(thisResource, vocab.rdfs('label'), annotation.title);
+    graph.add(thisResource, vocab.oa('motivatedBy'), vocab.oa('commenting')); //https://www.w3.org/TR/annotation-vocab/#named-individuals
 
+    graph.add(annotation.target, vocab.rdf('type'), vocab.oa('SpecificResource'));
+    graph.add(annotation.target, vocab.oa('hasSelector'), selector);
+    graph.add(annotation.target, vocab.oa('hasSource'), annotation.source);
+
+    graph.add(selector, vocab.rdf('type'), vocab.oa('FragmentSelector'));
+    graph.add(selector, vocab.oa('refinedBy'), text_quote_selector);
+
+    graph.add(text_quote_selector, vocab.rdf('type'), vocab.oa('TextQuoteSelector'));
+    graph.add(text_quote_selector, vocab.oa('exact'), annotation.exact);
+    graph.add(text_quote_selector, vocab.oa('prefix'), annotation.prefix);
+    graph.add(text_quote_selector, vocab.oa('suffix'), annotation.suffix);
+
+    var data = new rdf.Serializer(graph).toN3(graph); // create Notation3 serialization
+    solid.web.post(save_location, data, slug).then(function(meta) {
+        var url = meta.url;
+        console.log("Comment was saved at " + url);
+    }).catch(function(err) {
+        // do something with the error
+        console.log(err);
+    });
+
+    this.classApplier.toggleSelection(); // toggle highlight
     this.base.checkContentChanged();
 
   }
@@ -143,9 +186,6 @@ var LoadHighlightsButton = MediumEditor.extensions.button.extend({
       var rangyRange = util.createRangyRange(selection, document.body, document);
       this.classApplier.toggleRange(rangyRange); // TODO: Change to applyToRange
     }
-
-
-
 
     this.base.checkContentChanged();
 
