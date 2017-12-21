@@ -1,9 +1,13 @@
+// Libraries
 var solid = require('solid-client'); // or require('solid') ?
-var rdflib = require('rdflib');
-var ns = require('rdf-ns')()
+var rdf = require('rdflib');
+var ns = require('rdf-ns')(rdf)
 var MediumEditor = require('medium-editor');
 var rangy = require('rangy');
 var rangyClassApplier = require('rangy/lib/rangy-classapplier');
+
+// Modules
+var util = require('./util.js');
 
 css_files = ["https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css", // font awesome
              "//cdn.jsdelivr.net/npm/medium-editor@latest/dist/css/medium-editor.min.css", // core medium editor CSS
@@ -94,15 +98,51 @@ var HighlighterButton = MediumEditor.extensions.button.extend({
 
 
     // Create triples with solid
-    // var graph = $rdf.graph();
-    // var thisResource = $rdf.sym('');
-    // graph.add(thisResource, vocab.dct('title'), $rdf.lit(request.title));
-    // graph.add(thisResource, vocab.sioc('content'), $rdf.lit(request.value));
-    // graph.add(thisResource, vocab.sioc('about'), $rdf.lit(request.url)); // THIS IS THE WRONG TERM, but which one is the right one?
-    // var data = new $rdf.Serializer(graph).toN3(graph);
 
 
 
+
+    this.base.checkContentChanged();
+
+  }
+});
+
+
+var LoadHighlightsButton = MediumEditor.extensions.button.extend({
+  name: 'loader',
+
+  tagNames: ['load'], // nodeName which indicates the button should be 'active' when isAlreadyApplied() is called
+  contentDefault: '<b>Load</b>', // default innerHTML of the button
+  contentFA: '<i class="fa fa-download"></i>', // innerHTML of button when 'fontawesome' is being used
+  aria: 'load', // used as both aria-label and title attributes
+  action: 'load', // used as the data-action attribute of the button
+
+  init: function () {
+    MediumEditor.extensions.button.prototype.init.call(this);
+    this.classApplier = rangyClassApplier.createClassApplier('highlight', {
+      elementTagName: 'mark',
+      normalize: true
+    });
+  },
+
+  handleClick: function (event) {
+    // this.base.restoreSelection();
+
+    /** TODO: Collect this from storage using solid **/
+    prefix = 'Open ';
+    exact = 'Web';
+    suffix = 'slides';
+    /*************************************************/
+
+    var selectorIndex = document.body.textContent.indexOf(prefix + exact + suffix);
+    if (selectorIndex >= 0) {
+      var exactStart = selectorIndex + prefix.length
+      var exactEnd = selectorIndex + prefix.length + exact.length;
+      var selection = { start: exactStart, end: exactEnd };
+
+      var rangyRange = util.createRangyRange(selection, document.body, document);
+      this.classApplier.toggleRange(rangyRange); // TODO: Change to applyToRange
+    }
 
 
 
@@ -122,10 +162,13 @@ var editor = new MediumEditor(document.querySelectorAll(selector), {
   spellcheck: false,
   anchorPreview: false,
   extensions: {
-    'highlighter': new HighlighterButton()
+    'highlighter': new HighlighterButton(),
+    'loader': new LoadHighlightsButton()
   },
   toolbar: {
-      buttons: ['highlighter'],
+      buttons: ['highlighter', 'loader'],
       allowMultiParagraphSelection: false
   }
 });
+
+window.editor = editor;
