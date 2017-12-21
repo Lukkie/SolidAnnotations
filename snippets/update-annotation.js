@@ -6,10 +6,10 @@ var vocab = solid.vocab;
 vocab.oa = ns.base('http://www.w3.org/ns/oa#');
 vocab.as = ns.base('http://www.w3.org/ns/activitystreams#');
 
-function updateObject(graph, subject, predicate, new_object) {
-  // Removes ALL statements matching subject and predicate
+function updateObject(graph, subject, predicate, new_object, old_object) {
+  // Removes ALL statements matching subject and predicate (and old_object, if not undefined)
   // Adds a new triple with the new object value
-  var statements = graph.statementsMatching(subject, predicate, undefined);
+  var statements = graph.statementsMatching(subject, predicate, old_object);
   graph.remove(statements);
   graph.add(subject, predicate, new_object);
 }

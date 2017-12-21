@@ -28,10 +28,8 @@ var slug = uuidv1();
 var thisResource = rdf.sym(save_location + '/' + slug); // saves url as NamedNode
 var selector = rdf.sym(thisResource.uri + '#fragment-selector'); // TODO: Is there a more natural way of creating hash URIs
 var text_quote_selector = rdf.sym(thisResource.uri + '#text-quote-selector');
-var body = rdf.sym(thisResource.uri + '#body'); // TODO: Extend for multiple bodies
 
 var graph = rdf.graph(); // create an empty graph
-
 
 // Uses WebAnnotations recommended ontologies
 graph.add(thisResource, vocab.rdf('type'), vocab.oa('Annotation'));
@@ -40,7 +38,6 @@ graph.add(thisResource, vocab.dct('creator'), annotation.author);
 graph.add(thisResource, vocab.dct('created'), annotation.date);
 graph.add(thisResource, vocab.rdfs('label'), annotation.title);
 graph.add(thisResource, vocab.oa('motivatedBy'), vocab.oa('commenting')); //https://www.w3.org/TR/annotation-vocab/#named-individuals
-graph.add(thisResource, vocab.oa('hasBody'), body);
 
 // graph.add(thisResource, vocab.oa('canonical'), TODO);
 
@@ -56,7 +53,9 @@ graph.add(text_quote_selector, vocab.oa('exact'), annotation.exact);
 graph.add(text_quote_selector, vocab.oa('prefix'), annotation.prefix);
 graph.add(text_quote_selector, vocab.oa('suffix'), annotation.suffix);
 
-
+/** If annotation contains note **/
+var body = rdf.sym(thisResource.uri + '#body'); // TODO: Extend for multiple bodies
+graph.add(thisResource, vocab.oa('hasBody'), body);
 graph.add(body, vocab.rdf('type'), vocab.oa('TextualBody'));
 graph.add(body, vocab.rdf('value'), annotation.comment_text);
 // dokieli adds schema:description and schema:name and dcterms:conformsTo
