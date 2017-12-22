@@ -1,7 +1,6 @@
 //http://dig.csail.mit.edu/2005/ajar/ajaw/Developer.html
 var solid = require('solid-client');
 var rdf = require('rdflib');
-var ns = require('rdf-ns')()
 
 var vocab = solid.vocab;
 
