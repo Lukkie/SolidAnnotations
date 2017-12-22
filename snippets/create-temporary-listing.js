@@ -45,11 +45,12 @@ for (var i = 0; i < annotations.length; i++) {
   // GET TARGET URL
   solid.web.get(annotation).then(function(response) {
       let annotation_graph = response.parsedGraph();  // graph is part of rdflib, see link at top of page.
-      let target_url = annotation_graph.any(rdf.sym(annotation), vocab.oa('hasTarget'), undefined);
-      if (target_url) {
+      let target_url = annotation_graph.any(rdf.sym(annotation), vocab.oa('hasTarget'), undefined); // hasTarget
+      let source_url = annotation_graph.any(rdf.sym(target_url.value), vocab.oa('hasSource'), undefined); // hasSource
+      if (source_url) {
         // ADD TO GRAPH
-        console.log(target_url.value);
-        graph.add(rdf.sym(target_url.value), vocab.example('hasAnnotation'), rdf.sym(annotation)); // TODO: find correct predicate
+        console.log(source_url.value);
+        graph.add(rdf.sym(source_url.value), vocab.example('hasAnnotation'), rdf.sym(annotation)); // TODO: find correct predicate
         // Wait until all are added to graph, and then store graph
         count++;
         if (count >= annotations.length) {
@@ -57,7 +58,7 @@ for (var i = 0; i < annotations.length; i++) {
             store(graph);
         }
       } else {
-        console.log("No target URL was found for annotation with URL " + annotation);
+        console.log("No source URL was found for annotation with URL " + annotation);
       }
   }).catch(function(err) {
       // do something with the error
