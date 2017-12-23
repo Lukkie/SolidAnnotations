@@ -13,7 +13,8 @@ var slug = 'test';
 var annotations = [
   'https://lukasvanhoucke.databox.me/Public/Annotations/b79007b0-e702-11e7-9e23-196ff7ed8e65',
   'https://lukasvanhoucke.databox.me/Public/Annotations/ec4a4290-e702-11e7-9e23-196ff7ed8e65',
-  'https://lukasvanhoucke.databox.me/Public/Annotations/ff227a90-e702-11e7-9e23-196ff7ed8e65'
+  'https://lukasvanhoucke.databox.me/Public/Annotations/ff227a90-e702-11e7-9e23-196ff7ed8e65',
+  'https://lukasvanhoucke.databox.me/Public/Annotations/8c493490-e7ee-11e7-b37a-35d45434d061'
 ];
 
 function store(graph) {
