@@ -2,7 +2,7 @@
 // Libraries
 const solid = require('solid-client'); // or require('solid') ?
 const rdf = require('rdflib');
-const ns = require('rdf-ns')(rdf)
+const ns = require('rdf-ns')(rdf);
 const MediumEditor = require('medium-editor');
 const rangy = require('rangy');
 const rangyClassApplier = require('rangy/lib/rangy-classapplier');

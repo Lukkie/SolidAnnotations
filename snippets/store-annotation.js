@@ -21,7 +21,9 @@ var annotation = {
 }
 
 
-var save_location = 'https://lukasvanhoucke.databox.me/Public/Annotations';
+// var save_location = 'https://lukasvanhoucke.databox.me/Public/Annotations';
+// var save_location = 'https://vanhoucke.me:5000/Public/Annotations';
+var save_location = 'https://localhost:8443//Public/bins';
 var slug = uuidv1();
 
 
@@ -70,7 +72,7 @@ var data = new rdf.Serializer(graph).toN3(graph); // create Notation3 serializat
 
 console.log(data.toString());
 
-solid.web.post(save_location, data, slug).then(function(meta) {
+solid.web.post(save_location, data/*, slug*/).then(function(meta) {
     var url = meta.url;
     console.log("Comment was saved at " + url);
 }).catch(function(err) {

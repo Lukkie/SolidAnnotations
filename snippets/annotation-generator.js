@@ -1,6 +1,6 @@
 // If possible, make webpage from this
 // Could be cleaner with async/await but not supported in my node version
-var save_location = 'https://vanhoucke.me:5000/public/bins';
+var save_location = 'https://lukas.vanhoucke.me/public/bins';
 
 const solid = require('solid-client');
 const rdf = require('rdflib');
@@ -12,6 +12,9 @@ const promiseRetry = require('promise-retry');
 var vocab = solid.vocab;
 vocab.oa = ns.base('http://www.w3.org/ns/oa#');
 vocab.as = ns.base('http://www.w3.org/ns/activitystreams#');
+
+const web_workers = 10; // Cannot create all annotations at the same time, so divide work.
+                        // TODO http://doduck.com/concurrent-requests-node-js/
 
 const number_of_annotations = 50;
 const number_of_users = 10;
@@ -82,11 +85,6 @@ function generate_websites() {
           website = 'https://www.' + data.firstName + data.lastName + '.com';
           websites.push(website);
           if (websites.length == number_of_websites) resolve();
-          // for (let i = 0; i < fragments.length; i++) {
-          //   let fragment = fragments[i];
-          //   websites.push(website + "#" + fragment);
-          // }
-          // if (websites.length == (number_of_websites * fragments.length)) resolve();
         })
         .catch( (err) => {
           console.log(err);
