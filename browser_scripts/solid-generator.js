@@ -20,15 +20,10 @@ vocab.example = ns.base('http://www.example.com/ns#'); // TODO: Remove this by f
 const web_workers = 10; // Cannot create all annotations at the same time, so divide work.
                         // TODO http://doduck.com/concurrent-requests-node-js/
 
-const number_of_annotations = 50;
-const number_of_users = 10;
-const number_of_websites = 10;
 const fragments = ["introduction", "chapter_one", "chapter_two", "listing_one",
  "listing_two", "listing_three", "conclusion", "sources", "comments", "about"];
 
- let users = [];
- let websites = [];
- let annotations = [];
+
 
  // Adapted function to only return names that match regex /^[A-Za-z]+$/
  // function randomUser() {
@@ -66,13 +61,14 @@ const fragments = ["introduction", "chapter_one", "chapter_two", "listing_one",
   }
 
  // Generate a list of random users (and create specific bin for each user)
- function generate_users() {
+ function generate_users(number_of_users, users) {
    return new Promise(function(resolve, reject) {
      for (let i = 0; i < number_of_users; i++) {
        let user = null;
        randomUser()
          .then( (data) => {
            user = data;
+           user.id = i;
            var username = user.username;
            return solid.web.createContainer(inbox_location, username);
          })
@@ -92,7 +88,7 @@ const fragments = ["introduction", "chapter_one", "chapter_two", "listing_one",
  }
 
  // Generate a list of random websites, and multiple fragments per website
- function generate_websites() {
+ function generate_websites(number_of_websites, websites) {
    return new Promise(function(resolve, reject) {
      for (let i = 0; i < number_of_websites; i++) {
        let website = null;
@@ -113,7 +109,7 @@ const fragments = ["introduction", "chapter_one", "chapter_two", "listing_one",
 
  // Generate annotation for randomly chosen user on a randomly chosen website + fragment
  // Generates random title, text, date
- function generate_annotations(number_of_annotations, users, websites, fragments) {
+ function generate_annotations(number_of_annotations, users, websites, fragments, annotations) {
    return new Promise(function(resolve, reject) {
      for (let i = 0; i < number_of_annotations; i++) {
        let user_id = Math.floor(Math.random() * users.length);
@@ -179,6 +175,7 @@ const fragments = ["introduction", "chapter_one", "chapter_two", "listing_one",
          var url = meta.url;
          annotations.push(url);
          console.log("Annotation " + annotations.length + " created at " + url);
+         showAnnotation(meta.url, user, website + '#' + fragment)
          if (annotations.length == number_of_annotations) {
            resolve();
          }
@@ -192,28 +189,100 @@ const fragments = ["introduction", "chapter_one", "chapter_two", "listing_one",
  }
 
 
+function generateAnnotations(number_of_annotations, number_of_users, number_of_websites) {
+  // let number_of_annotations = number_of_annotations || 50;
+  // let number_of_users = number_of_users || 10;
+  // let number_of_websites = number_of_websites || 10;
+  let annotations = [];
+  let users = [];
+  let websites = [];
+  solid.login() // the browser automatically provides the client key/cert for you
+    .then(webId => {
+      console.log('Current WebID: %s', webId);
+      return solid.getProfile(webId);
+      })
+    .then(function (profile) {
+      console.log("User logged in: " + profile.name);
+      var name = profile.name;
+      var webId = profile.webId;
+      inbox_location = profile.find(solid.vocab.ldp('inbox')) || inbox_location;    // -> 'https://example.com/inbox/'
+      if (!inbox_location) throw new Exception("No inbox location found");
 
-solid.login() // the browser automatically provides the client key/cert for you
-  .then(webId => {
-    console.log('Current WebID: %s', webId);
-    return solid.getProfile(webId);
-    })
-  .then(function (profile) {
-    console.log("User logged in: " + profile.name);
-    var name = profile.name;
-    var webId = profile.webId;
-    inbox_location = profile.find(solid.vocab.ldp('inbox')) || inbox_location;    // -> 'https://example.com/inbox/'
-    if (!inbox_location) throw new Exception("No inbox location found");
+      return generate_users(number_of_users, users)
+    }).then(function() {
+      console.log("Users created");
+      return generate_websites(number_of_websites, websites);
+    }).then(function() {
+      console.log("Websites created");
+      return generate_annotations(number_of_annotations, users, websites, fragments, annotations);
+    }).then(function() {
+      console.log("Annotations created");
+    }).catch(function(err) {
+      console.log(err);
+    });
+}
 
-    return generate_users()
-  }).then(function() {
-    console.log("Users created");
-    return generate_websites();
-  }).then(function() {
-    console.log("Websites created");
-    return generate_annotations(number_of_annotations, users, websites, fragments);
-  }).then(function() {
-    console.log("Annotations created");
-  }).catch(function(err) {
-    console.log(err);
-  });
+function showAnnotation(annotation_url, user, site) {
+  let userList = document.getElementById("userList_" + user.id);
+  if (!userList) {
+    // create list
+    let listItem = document.createElement('li');
+    listItem.appendChild(document.createTextNode("User " + user.id));
+    userList = document.createElement('ul');
+    userList.setAttribute("id", "userList_" + user.id);
+    listItem.appendChild(userList);
+    document.getElementById("annotationsList").append(listItem);
+  }
+
+  // append to list
+  let newListItem = document.createElement('li');
+  newListItem.appendChild(document.createTextNode(user.firstName + " " + user.lastName + " (" + user.id + ") created an annotation for \"" + site +
+  "\" stored at "));
+
+  let link = document.createElement('a');
+  let linkText = document.createTextNode(annotation_url);
+  link.appendChild(linkText);
+  link.href = annotation_url;
+  link.title = annotation_url;
+  newListItem.appendChild(link);
+
+  userList.appendChild(newListItem);
+}
+
+function synchronizeInputAndSlider(inputId, sliderId) {
+  var slider = document.getElementById(sliderId);
+  var input = document.getElementById(inputId);
+  input.value = slider.value;
+  var min = parseInt(slider.min);
+  var max = parseInt(slider.max);
+
+  // Update the current slider value (each time you drag the slider handle)
+  slider.oninput = function() {
+      input.value = this.value;
+  }
+
+  input.oninput = function() {
+    this.value = this.value.replace(/[^0-9.]/g, '');
+    this.value = parseInt(this.value);
+    if (this.value != "") {
+      if (this.value < min) {
+        this.value = min;
+      } else if (this.value > max) {
+        this.value = max;
+      }
+      slider.value = this.value;
+    }
+  }
+}
+
+synchronizeInputAndSlider("usersInput", "usersRange");
+synchronizeInputAndSlider("websitesInput", "websitesRange");
+synchronizeInputAndSlider("annotationsInput", "annotationsRange");
+
+var button = document.getElementById("generateButton");
+button.onclick = function() {
+  let number_of_annotations = document.getElementById("annotationsRange").value;
+  let number_of_users = document.getElementById("usersRange").value;
+  let number_of_websites = document.getElementById("websitesRange").value;
+  generateAnnotations(number_of_annotations, number_of_users, number_of_websites);
+}
