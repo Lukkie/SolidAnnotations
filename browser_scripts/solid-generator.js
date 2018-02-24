@@ -1,3 +1,5 @@
+"use strict";
+
 /******************************IMPORTS ******************************/
 // Libraries
 const solid = require('solid-client'); // or require('solid') ?
@@ -7,9 +9,12 @@ const ns = require('rdf-ns')(rdf);
 const uuidv1 = require('uuid/v1');
 const randomUserOriginal = require('random-user');
 const promiseRetry = require('promise-retry');
+const request = require('superagent');
 
-// var inbox_location = 'https://lukas.vanhoucke.me/inbox'; // Temporary
-var inbox_location = null; // Temporary
+// var save_location = 'https://lukas.vanhoucke.me/inbox'; // Temporary
+var save_location = null; // Temporary
+// const sparql_endpoint = 'https://vanhoucke.me/sparql';
+var sparql_endpoint = window.location.protocol + '//' + window.location.host + '/sparql';
 
 var vocab = solid.vocab;
 vocab.oa = ns.base('http://www.w3.org/ns/oa#');
@@ -26,42 +31,42 @@ const fragments = ["introduction", "chapter_one", "chapter_two", "listing_one",
 
 
  // Adapted function to only return names that match regex /^[A-Za-z]+$/
- // function randomUser() {
- //   return promiseRetry(function (retry, number) {
- //       //console.log('attempt number', number);
- //       return new Promise(function(resolve, reject) {
- //         randomUserOriginal('simple')
- //           .then( (data) => {
- //             if (/^[A-Za-z]+$/.test(data.firstName) && /^[A-Za-z]+$/.test(data.lastName)) {
- //               resolve(data);
- //             } else {
- //               //console.log("REJECTED: " + data.firstName + " " + data.lastName);
- //               reject(data);
- //             }
- //           }).catch((err) => {
- //             console.log(err);
- //             reject(err);
- //           });
- //       }).catch(retry);
- //   });
- // }
+ function randomUser() {
+   return promiseRetry(function (retry, number) {
+       //console.log('attempt number', number);
+       return new Promise(function(resolve, reject) {
+         randomUserOriginal('simple')
+           .then( (data) => {
+             if (/^[A-Za-z]+$/.test(data.firstName) && /^[A-Za-z]+$/.test(data.lastName)) {
+               resolve(data);
+             } else {
+               //console.log("REJECTED: " + data.firstName + " " + data.lastName);
+               reject(data);
+             }
+           }).catch((err) => {
+             console.log(err);
+             reject(err);
+           });
+       }).catch(retry);
+   });
+ }
 
  // dummy function for localhost testing, since it does not allow cross-origin requests.
- function randomUser() {
-   return new Promise(function(resolve, reject) {
-     let data = {};
-     try {
-       data.firstName = Math.random().toString(36).substring(7);
-       data.lastName = Math.random().toString(36).substring(7);
-       resolve(data);
-     } catch(err) {
-       reject(err);
-     }
-   });
-  }
+ // function randomUser() {
+ //   return new Promise(function(resolve, reject) {
+ //     let data = {};
+ //     try {
+ //       data.firstName = Math.random().toString(36).substring(7);
+ //       data.lastName = Math.random().toString(36).substring(7);
+ //       resolve(data);
+ //     } catch(err) {
+ //       reject(err);
+ //     }
+ //   });
+ //  }
 
  // Generate a list of random users (and create specific bin for each user)
- function generate_users(number_of_users, users) {
+ function generateUsers(number_of_users, users) {
    return new Promise(function(resolve, reject) {
      for (let i = 0; i < number_of_users; i++) {
        let user = null;
@@ -70,7 +75,7 @@ const fragments = ["introduction", "chapter_one", "chapter_two", "listing_one",
            user = data;
            user.id = i;
            var username = user.username;
-           return solid.web.createContainer(inbox_location, username);
+           return solid.web.createContainer(save_location, username);
          })
          .then(function(meta) {
            var url = meta.url;
@@ -88,7 +93,7 @@ const fragments = ["introduction", "chapter_one", "chapter_two", "listing_one",
  }
 
  // Generate a list of random websites, and multiple fragments per website
- function generate_websites(number_of_websites, websites) {
+ function generateWebsites(number_of_websites, websites) {
    return new Promise(function(resolve, reject) {
      for (let i = 0; i < number_of_websites; i++) {
        let website = null;
@@ -109,7 +114,7 @@ const fragments = ["introduction", "chapter_one", "chapter_two", "listing_one",
 
  // Generate annotation for randomly chosen user on a randomly chosen website + fragment
  // Generates random title, text, date
- function generate_annotations(number_of_annotations, users, websites, fragments, annotations) {
+ function generateAnnotations(number_of_annotations, users, websites, fragments, annotations) {
    return new Promise(function(resolve, reject) {
      for (let i = 0; i < number_of_annotations; i++) {
        let user_id = Math.floor(Math.random() * users.length);
@@ -133,9 +138,9 @@ const fragments = ["introduction", "chapter_one", "chapter_two", "listing_one",
        }
 
        let slug = uuidv1();
-       let inbox_location = user.directory;
+       let save_location = user.directory;
 
-       var thisResource = rdf.sym(inbox_location + '/' + slug); // saves url as NamedNode
+       var thisResource = rdf.sym(save_location + '/' + slug); // saves url as NamedNode
        var selector = rdf.sym(thisResource.uri + '#fragment-selector');
        var text_quote_selector = rdf.sym(thisResource.uri + '#text-quote-selector');
 
@@ -171,7 +176,7 @@ const fragments = ["introduction", "chapter_one", "chapter_two", "listing_one",
 
        var data = new rdf.Serializer(graph).toN3(graph); // create Notation3 serialization
 
-       solid.web.post(inbox_location, data/*, slug*/).then(function(meta) {
+       solid.web.post(save_location, data, slug).then(function(meta) {
          var url = meta.url;
          annotations.push(url);
          console.log("Annotation " + annotations.length + " created at " + url);
@@ -188,11 +193,36 @@ const fragments = ["introduction", "chapter_one", "chapter_two", "listing_one",
    });
  }
 
+function generateSPARQLAnnotations(annotations) {
+  return new Promise(function(resolve, reject) {
+    let number_of_annotations = annotations.length;
+    let counter = 0;
+    for (let i = 0; i < number_of_annotations; i++) {
+      let annotation = annotations[i];
+      request.post(sparql_endpoint)
+        .send({
+          graph: annotation
+        })
+        .then(function(res) {
+          let annotation_split = annotation.split('/');
+          console.log("Succesfully created graph of " + annotation +" (" +
+              sparql_endpoint + '/' + annotation_split[annotation_split.length - 2]  +
+              '/' + annotation_split[annotation_split.length - 1] + ')');
+          counter++;
+          if (counter == number_of_annotations) {
+            resolve();
+          }
+        })
+        .catch(function(err) {
+          console.log("Received error: " + err);
+          reject();
+        })
+    }
 
-function generateAnnotations(number_of_annotations, number_of_users, number_of_websites) {
-  // let number_of_annotations = number_of_annotations || 50;
-  // let number_of_users = number_of_users || 10;
-  // let number_of_websites = number_of_websites || 10;
+  });
+}
+
+function generate(number_of_annotations, number_of_users, number_of_websites) {
   let annotations = [];
   let users = [];
   let websites = [];
@@ -205,18 +235,20 @@ function generateAnnotations(number_of_annotations, number_of_users, number_of_w
       console.log("User logged in: " + profile.name);
       var name = profile.name;
       var webId = profile.webId;
-      inbox_location = profile.find(solid.vocab.ldp('inbox')) || inbox_location;    // -> 'https://example.com/inbox/'
-      if (!inbox_location) throw new Exception("No inbox location found");
-
-      return generate_users(number_of_users, users)
+      save_location = profile.find(vocab.oa('annotationService')) || save_location;    // -> 'https://example.com/inbox/'
+      if (!save_location) throw new Exception("No annotation storage location (oa:annotationService) found in profile.");
+      return generateUsers(number_of_users, users)
     }).then(function() {
       console.log("Users created");
-      return generate_websites(number_of_websites, websites);
+      return generateWebsites(number_of_websites, websites);
     }).then(function() {
       console.log("Websites created");
-      return generate_annotations(number_of_annotations, users, websites, fragments, annotations);
+      return generateAnnotations(number_of_annotations, users, websites, fragments, annotations);
     }).then(function() {
       console.log("Annotations created");
+      return generateSPARQLAnnotations(annotations);
+    }).then(function() {
+      console.log("Annotations copied to SPARQL server")
     }).catch(function(err) {
       console.log(err);
     });
@@ -284,5 +316,5 @@ button.onclick = function() {
   let number_of_annotations = document.getElementById("annotationsRange").value;
   let number_of_users = document.getElementById("usersRange").value;
   let number_of_websites = document.getElementById("websitesRange").value;
-  generateAnnotations(number_of_annotations, number_of_users, number_of_websites);
+  generate(number_of_annotations, number_of_users, number_of_websites);
 }

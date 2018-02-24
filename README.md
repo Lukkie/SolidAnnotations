@@ -13,3 +13,9 @@ Linked data annotations based on the Solid stack.
 - Upload this new file
 - Replace the script source in `assets/Bookmarklet-content.txt` with the URL of `bundle.js`
 - Create a bookmark in your browser, and use the content of `assets/Bookmarklet-content.txt` as value.
+
+
+
+# Solid Generator
+Can be found in browser_scripts/solid-generator.js
+Note that it requires a `random-user' dependency, but this will not work with HTTPS. Simply change its source code to use HTTPS instead of HTTP (pull request has not been accepted yet).
