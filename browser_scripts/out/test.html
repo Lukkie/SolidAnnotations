@@ -1,16 +1,56 @@
+
+<!DOCTYPE html>
 <html>
   <head>
     <meta charset="utf-8">
     <title>
-    A Simple HTML Document
+      Annotation Generator
     </title>
+    <link rel="stylesheet" href="styling.css" />
   </head>
   <body>
-    <!-- <script type='text/javascript' src='solid-auth.out.js'></script> -->
-    <!-- <script src='C:\Users\LPC2\Dropbox\MasterproefUGent\Bookmarklet\SolidAnnotations\node_modules\solid-client\dist\solid-client.min.js'></script> -->
-    <script type='text/javascript' charset="utf-8" src='C:\Users\LPC2\Dropbox\MasterproefUGent\Bookmarklet\SolidAnnotations\node_modules\solid-client\dist\solid-client.min.js'></script>
-    <p>This is a very simple HTML document</p>
-    <p>It only has two paragraphs</p>
+    <center>
+      <div class="introduction">
+        <h1>Annotation generator</h1>
+        <span>Generates annotation and stores them in your solid datapod and the server's SPARQL equivalent. Timing results are outputted to console.
+        Pressing the second button will also collect the stored annotations solely for timing purposes.</span>
+        <br />
+        <span>Note that your solid datapod requires an annotation container that is announced by an <a href="http://www.w3.org/ns/oa#annotationService">oa:annotationService</a> triple in your profile.</span>
+      </div>
+
+      <div class="parameterSelection">
+        <label for="usersRange">Number of users: </label>
+        <input id="usersRange" type="range" min="1" max="100" value="10" class="slider">
+        <input id="usersInput" type="number" name="quantity" min="1" max="100" step="1">
+      </div>
+        <br />
+      <div class="parameterSelection">
+        <label for="websitesRange">Number of websites: </label>
+        <input id="websitesRange" type="range" min="1" max="100" value="10" class="slider">
+        <input id="websitesInput" type="number" name="quantity" min="1" max="100" step="1">
+      </div>
+        <br />
+      <div class="parameterSelection">
+        <label for="annotationsRange">Number of annotations: </label>
+        <input id="annotationsRange" type="range" min="1" max="1000" value="50" class="slider">
+        <input id="annotationsInput" type="number" name="quantity" min="1" max="1000" step="1">
+      </div>
+      <br />
+      <div class="buttons">
+          <input class="button" id="generateButton" type="button" value="Generate annotations"/>
+          <input class="button" id="loadButton" type="button" value="+ Load annotations"/>
+      </div>
+
+    </center>
+
+    <div class="annotationsListContainer">
+      <ul id="annotationsList">
+      </ul>
+    </div>
+
+
+
+    <script type='text/javascript' charset="utf-8" src='solid-generator.out.js'></script>
   </body>
 
 </html>
