@@ -255,7 +255,9 @@ function generate(number_of_annotations, number_of_users, number_of_websites) {
     solid.login() // the browser automatically provides the client key/cert for you
       .then(webId => {
         console.log('Current WebID: %s', webId);
-        return solid.getProfile(webId);
+        // Load extended profile? At the moment: No -- Solid cannot parse text -> leads to issues
+        let options = {ignoreExtended: true};
+        return solid.getProfile(webId, options);
         })
       .then(function (profile) {
         console.log("User logged in: " + profile.name);
@@ -299,9 +301,9 @@ function loadSolidAnnotations(annotations) {
           elapsedS = hrtime(annotations_timer)[0];
           elapsedMs = hrtime(annotations_timer)[1] / 1e6;
           elapsed = 1000*elapsedS + elapsedMs;
-          console.log("-- [Solid] All annotations collected --");
+          console.log("-- [SOLID] All annotations collected --");
           let average_time = elapsed / annotations.length;
-          console.log("-- [Solid] Average collection time for " + annotations.length +
+          console.log("-- [SOLID] Average collection time for " + annotations.length +
                       " annotations is " + average_time + " ms --");
           resolve();
         }
@@ -363,6 +365,75 @@ function loadAnnotations(annotations) {
     });
   });
 }
+
+function initialize() {
+  solid.login() // the browser automatically provides the client key/cert for you
+    .then(webId => {
+      if (!webId) return Promise.reject(new Error("Login failed. Make sure you have a valid WebID and certificate."));
+      console.log('Current WebID: %s', webId);
+
+      // Load extended profile? At the moment: No -- Solid cannot parse text -> leads to issues
+      let options = {ignoreExtended: true};
+      return solid.getProfile(webId, options);
+      })
+    .then(function (profile) {
+      console.log("User logged in: " + profile.name);
+      var name = profile.name;
+      var webId = profile.webId;
+
+      var annotationService_location = profile.find(vocab.oa('annotationService'));
+      if (!annotationService_location) {
+        // Add triple to profile
+        // https://github.com/solid/solid-client#updating-a-resource
+        var toDel = [];
+        var toIns = [rdf.triple(rdf.sym(profile.webId), vocab.oa('annotationService'), rdf.sym(profile.storage + "/annotations"))];
+        solid.web.patch(profile.baseProfileUrl, toDel, toIns)
+        .then(function (response){
+          console.log("Succesfully added link to annotations directory."); // HTTP 200 (OK)
+        })
+        .catch(function(err) {
+          console.log(err); // error object
+        })
+      } else {
+        console.log("Triple is already present -- no further actions required")
+      }
+
+      // check if directory exists
+      // https://github.com/solid/solid-client#listing-a-solid-container
+      // undefined if it does not exist
+      solid.web.get(profile.storage + "/annotations")
+      .then(function(container) {
+        console.log('container exists -- no further actions required');
+      })
+      .catch(function(err) {
+         // Container does not exist
+         console.log('Container does NOT exist');
+         // if not existing: create directory
+         // https://github.com/solid/solid-client#creating-a-solid-container
+         var data = rdf.triple(rdf.sym(profile.storage + '/annotations'), vocab.ldp('constrainedBy'), rdf.sym('http://www.w3.org/TR/annotation-protocol/'));
+         solid.web.createContainer(profile.storage, 'annotations', {}, data).then(
+           function(solidResponse) {
+             console.log(solidResponse)
+             // The resulting object has several useful properties.
+             // See lib/solid/response.js for details
+             // solidResponse.url - value of the Location header
+             // solidResponse.acl - url of acl resource
+             // solidResponse.meta - url of meta resource
+           }
+         ).catch(function(err){
+           console.log(err) // error object
+         })
+      });
+
+
+
+    })
+    .catch(function(err) {
+      console.log(err);
+    });
+}
+
+
 
 function showAnnotation(annotation_url, user, site) {
   let userList = document.getElementById("userList_" + user.id);
@@ -440,5 +511,9 @@ loadButton.onclick = function() {
   }).catch(function(err) {
     console.log(err);
   });
+}
 
+var initializeButton = document.getElementById("initializeButton");
+initializeButton.onclick = function() {
+  initialize();
 }
