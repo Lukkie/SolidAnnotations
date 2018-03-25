@@ -28,6 +28,7 @@ const web_workers = 10; // Cannot create all annotations at the same time, so di
 
 const fragments = ["introduction", "chapter_one", "chapter_two", "listing_one",
  "listing_two", "listing_three", "conclusion", "sources", "comments", "about"];
+const content = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
 
 
 
@@ -67,28 +68,39 @@ const fragments = ["introduction", "chapter_one", "chapter_two", "listing_one",
   }
 
  // Generate a list of random users (and create specific bin for each user)
- function generateUsers(number_of_users, users) {
+ // If requested, can also store annotations in your own annotation directory
+ function generateUsers(number_of_users, users, profile) {
    return new Promise(function(resolve, reject) {
-     for (let i = 0; i < number_of_users; i++) {
-       let user = null;
-       randomUser()
-         .then( (data) => {
-           user = data;
-           user.id = i;
-           var username = user.username;
-           return solid.web.createContainer(save_location, username);
-         })
-         .then(function(meta) {
-           var url = meta.url;
-           console.log("Directory was created at " + url);
-           user.directory = url;
-           users.push(user);
-           if (users.length == number_of_users) resolve();
-         })
-         .catch( (err) => {
-           console.log(err);
-           reject(err);
-         });
+     if (numberOfUsersToggle.checked) {
+       let user = {};
+       user.name = profile.name;
+       user.card = profile.webId;
+       user.id = 0;
+       user.directory = profile.find(vocab.oa('annotationService'))
+       users.push(user);
+       resolve();
+     } else {
+       for (let i = 0; i < number_of_users; i++) {
+         let user = null;
+         randomUser()
+           .then( (data) => {
+             user = data;
+             user.id = i;
+             var username = user.username;
+             return solid.web.createContainer(save_location, username);
+           })
+           .then(function(meta) {
+             var url = meta.url;
+             console.log("Directory was created at " + url);
+             user.directory = url;
+             users.push(user);
+             if (users.length == number_of_users) resolve();
+           })
+           .catch( (err) => {
+             console.log(err);
+             reject(err);
+           });
+       }
      }
    });
  }
@@ -126,16 +138,23 @@ const fragments = ["introduction", "chapter_one", "chapter_two", "listing_one",
        let website = websites[website_id];
        let fragment = fragments[fragment_id];
 
+       let comment = content.split(" ");
+       let lower_comment_bound = Math.floor(Math.random() * comment.length)
+       let upper_comment_bound = lower_comment_bound + Math.ceil(Math.random() * (comment.length - lower_comment_bound))
+       comment = content.split(" ").slice(lower_comment_bound, upper_comment_bound).join(" ");
+
+       let username = user.name || (user.firstName + " " + user.lastName) || "Username";
+       let author = user.card || user.directory + '/card#me';
        let annotation = {
          source: rdf.sym(website),
          target: rdf.sym(website + '#' + fragment),
-         author: rdf.sym(user.directory + '/card#me'),  // This does not actually exist
-         title: rdf.lit(user.firstName +" " + user.lastName + " created an annotation", 'en'),
+         author: rdf.sym(author),  // This does not actually exist
+         title: rdf.lit(username + " created an annotation", 'en'),
          date: rdf.lit(new Date().toUTCString()), // TODO
          exact: rdf.lit('text to highlight', 'en'), // TODO
          prefix: rdf.lit('text before highlighted text', 'en'),
          suffix: rdf.lit('text after highlighted text', 'en'),
-         comment_text: rdf.lit('Comment text goes here', 'en')
+         comment_text: rdf.lit(comment, 'en')
        }
 
        let slug = uuidv1();
@@ -265,7 +284,7 @@ function generate(number_of_annotations, number_of_users, number_of_websites) {
         var webId = profile.webId;
         save_location = profile.find(vocab.oa('annotationService')) || save_location;
         if (!save_location) throw new Exception("No annotation storage location (oa:annotationService) found in profile.");
-        return generateUsers(number_of_users, users)
+        return generateUsers(number_of_users, users, profile)
       }).then(function() {
         console.log("Users created");
         return generateWebsites(number_of_websites, websites);
@@ -516,4 +535,20 @@ loadButton.onclick = function() {
 var initializeButton = document.getElementById("initializeButton");
 initializeButton.onclick = function() {
   initialize();
+}
+
+var numberOfUsersToggle = document.getElementById("NumberOfUsersCheckBox");
+numberOfUsersToggle.onclick = function() {
+  var usersParameterSelection = document.getElementById("usersParameterSelection");
+  var usersRange = document.getElementById("usersRange");
+  var usersInput = document.getElementById("usersInput");
+  if (numberOfUsersToggle.checked) {
+    usersParameterSelection.classList.add("disabled");
+    usersRange.disabled = true;
+    usersInput.disabled = true;
+  } else {
+    usersParameterSelection.classList.remove("disabled");
+    usersRange.disabled = false;
+    usersInput.disabled = false;
+  }
 }
