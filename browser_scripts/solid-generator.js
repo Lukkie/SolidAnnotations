@@ -160,7 +160,7 @@ const content = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
        let slug = uuidv1();
        let save_location = user.directory;
 
-       var thisResource = rdf.sym(save_location + '/' + slug); // saves url as NamedNode
+       var thisResource = rdf.sym(save_location + '/' + slug +'.ttl'); // saves url as NamedNode
        var selector = rdf.sym(thisResource.uri + '#fragment-selector');
        var text_quote_selector = rdf.sym(thisResource.uri + '#text-quote-selector');
 
