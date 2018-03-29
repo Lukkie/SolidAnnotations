@@ -5,6 +5,8 @@
 const solid = require('solid-client'); // or require('solid') ?
 const rdf = require('rdflib');
 const ns = require('rdf-ns')(rdf);
+const hrtime = require('browser-process-hrtime');
+
 
 // var save_location = 'https://lukas.vanhoucke.me/inbox'; // Temporary
 var save_location = null; // Temporary
@@ -26,6 +28,8 @@ const content = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
 // (Could also query each annotation in case the annotation directory would be huge, but is realistically not the case)
 
 function doIntersection() {
+  let timer = hrtime();
+  let number_of_annotations = 0;
   return new Promise(function(resolve, reject) {
     solid.login() // the browser automatically provides the client key/cert for you
       .then(webId => {
@@ -40,12 +44,17 @@ function doIntersection() {
         if (!save_location) throw new Exception("No annotation storage location (oa:annotationService) found in profile.");
         return collectAnnotationLocations();
       }).then(function(locations) {
-        return collectAnnotations(locations)
+        number_of_annotations = locations.length;
+        return collectAnnotations(locations);
       }).then(function(graph) {
         console.log("Annotations collected");
         return queryAnnotations(graph);
       }).then(function() {
         console.log("Finished.");
+        let elapsedS = hrtime(timer)[0];
+        let elapsedMs = hrtime(timer)[1] / 1e6;
+        let elapsed = Math.round(1000*elapsedS + elapsedMs);
+        document.getElementById("resultsms").innerHTML = "Queried " + number_of_annotations + " annotations in " + elapsed + " ms.";
       }).catch(function(err) {
         console.log(err);
         reject(err);
@@ -102,7 +111,6 @@ function queryAnnotations(graph) {
     let comments = graph.statementsMatching(undefined, vocab.rdf('value'), undefined);
     comments.forEach(function(comment) {
       let value = comment.object.value;
-      console.log(value);
       if (value.indexOf(stringToBeContained) !== -1) results.push(comment);
     })
     displayResults(results);
@@ -115,9 +123,10 @@ function displayResults(results) {
   if (results === null || results.length == 0) {
     resultString = "No results found.";
   } else {
-    results.forEach(function(result) {
-      resultString += result.why.value + ' --> ' + result.object.value + '\n';
-    });
+    for (let i = 0; i < results.length; i++) {
+      let result = results[i];
+      resultString += (i+1) + ') ' + result.why.value + ' --> ' + result.object.value + '\n';
+    }
   }
 
   document.getElementById("results").value = resultString;
