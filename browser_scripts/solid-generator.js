@@ -16,6 +16,7 @@ const hrtime = require('browser-process-hrtime');
 var save_location = null; // Temporary
 // const sparql_endpoint = 'https://vanhoucke.me/sparql';
 var sparql_endpoint = window.location.protocol + '//' + window.location.host + '/sparql';
+var sparql_onegraph_endpoint = window.location.protocol + '//' + window.location.host + '/sparql-2';
 
 var vocab = solid.vocab;
 vocab.oa = ns.base('http://www.w3.org/ns/oa#');
@@ -224,7 +225,8 @@ const content = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
    });
  }
 
-function generateSPARQLAnnotations(annotations) {
+function generateSPARQLAnnotations(annotations, isOneGraph) {
+  let endpoint = isOneGraph ? sparql_onegraph_endpoint : sparql_endpoint;
   return new Promise(function(resolve, reject) {
     let annotations_timer = hrtime();
 
@@ -233,7 +235,7 @@ function generateSPARQLAnnotations(annotations) {
     for (let i = 0; i < number_of_annotations; i++) {
       let annotation = annotations[i];
       let individual_annotation_timer = hrtime();
-      request.post(sparql_endpoint)
+      request.post(endpoint)
         .send({
           graph: annotation
         })
@@ -242,9 +244,14 @@ function generateSPARQLAnnotations(annotations) {
           let elapsedMs = hrtime(individual_annotation_timer)[1] / 1e6;
           let elapsed = 1000*elapsedS + elapsedMs;
           let annotation_split = annotation.split('/');
-          console.log("(" + i + ") Succesfully created graph of " + annotation +" ( " +
-              sparql_endpoint + '/' + annotation_split[annotation_split.length - 2]  +
+          if (isOneGraph) {
+            console.log("(" + i + ") Succesfully added data of " + annotation + ' to the graph (' + elapsed + " ms)");
+          }
+          else {
+            console.log("(" + i + ") Succesfully created graph of " + annotation +" ( " +
+              endpoint + '/' + annotation_split[annotation_split.length - 2]  +
               '/' + annotation_split[annotation_split.length - 1] + ' ) (' + elapsed + " ms)");
+          }
           counter++;
           if (counter == number_of_annotations) {
             elapsedS = hrtime(annotations_timer)[0];
@@ -293,6 +300,8 @@ function generate(number_of_annotations, number_of_users, number_of_websites) {
         return generateAnnotations(number_of_annotations, users, websites, fragments, annotations);
       }).then(function() {
         return generateSPARQLAnnotations(annotations);
+      }).then(function() {
+        return generateSPARQLAnnotations(annotations, true); // Using one graph
       }).then(function() {
         console.log("Annotations copied to SPARQL server");
         resolve(annotations);
