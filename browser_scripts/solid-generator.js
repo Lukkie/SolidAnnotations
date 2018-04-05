@@ -147,8 +147,7 @@ const content = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
        let username = user.name || (user.firstName + " " + user.lastName) || "Username";
        let author = user.card || user.directory + '/card#me';
        let annotation = {
-         source: rdf.sym(website),
-         target: rdf.sym(website + '#' + fragment),
+         source: rdf.sym(website + '#' + fragment),
          author: rdf.sym(author),  // This does not actually exist
          title: rdf.lit(username + " created an annotation", 'en'),
          date: rdf.lit(new Date().toUTCString()), // TODO
@@ -164,12 +163,13 @@ const content = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
        var thisResource = rdf.sym(save_location + '/' + slug +'.ttl'); // saves url as NamedNode
        var selector = rdf.sym(thisResource.uri + '#fragment-selector');
        var text_quote_selector = rdf.sym(thisResource.uri + '#text-quote-selector');
+       var target = rdf.sym(thisResource.uri + '#target');
 
        var graph = rdf.graph(); // create an empty graph
 
        // Uses WebAnnotations recommended ontologies
        graph.add(thisResource, vocab.rdf('type'), vocab.oa('Annotation'));
-       graph.add(thisResource, vocab.oa('hasTarget'), annotation.target);
+       graph.add(thisResource, vocab.oa('hasTarget'), target);
        graph.add(thisResource, vocab.dct('creator'), annotation.author);
        graph.add(thisResource, vocab.dct('created'), annotation.date);
        graph.add(thisResource, vocab.rdfs('label'), annotation.title);
@@ -177,9 +177,9 @@ const content = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
 
        // graph.add(thisResource, vocab.oa('canonical'), TODO);
 
-       graph.add(annotation.target, vocab.rdf('type'), vocab.oa('SpecificResource'));
-       graph.add(annotation.target, vocab.oa('hasSelector'), selector);
-       graph.add(annotation.target, vocab.oa('hasSource'), annotation.source);
+       graph.add(target, vocab.rdf('type'), vocab.oa('SpecificResource'));
+       graph.add(target, vocab.oa('hasSelector'), selector);
+       graph.add(target, vocab.oa('hasSource'), annotation.source);
 
        graph.add(selector, vocab.rdf('type'), vocab.oa('FragmentSelector'));
        graph.add(selector, vocab.oa('refinedBy'), text_quote_selector);

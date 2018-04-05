@@ -42,6 +42,7 @@ function doIntersection() {
         console.log("User logged in: " + profile.name);
         save_location = profile.find(vocab.oa('annotationService')) || save_location;
         if (!save_location) throw new Exception("No annotation storage location (oa:annotationService) found in profile.");
+        document.getElementById("loadingimage").style.display = "inline-block";
         return collectAnnotationLocations();
       }).then(function(locations) {
         number_of_annotations = locations.length;
@@ -57,6 +58,7 @@ function doIntersection() {
         document.getElementById("resultsms").innerHTML = "Queried " + number_of_annotations + " annotations in " + elapsed + " ms.";
       }).catch(function(err) {
         console.log(err);
+        document.getElementById("loadingimage").style.display = "none";
         reject(err);
       });
     });
@@ -130,6 +132,7 @@ function displayResults(results) {
   }
 
   document.getElementById("results").value = resultString;
+  document.getElementById("loadingimage").style.display = "none";
 }
 
 var initializeButton = document.getElementById("initializeButton");
