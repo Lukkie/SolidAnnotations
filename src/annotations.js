@@ -1,6 +1,6 @@
 /******************************IMPORTS ******************************/
 // Libraries
-const solid = require('solid-client'); // or require('solid') ?
+const solid = require('solid-client');
 const rdf = require('rdflib');
 const ns = require('rdf-ns')(rdf);
 const MediumEditor = require('medium-editor');
@@ -18,9 +18,9 @@ css_files = ["https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesom
 /** Config **/
 var selector = '.slide';
 var contextLength = 32; // Based on dokieli; The number of characters (at most) to add for context
-var save_location = 'https://lukasvanhoucke.databox.me/Public/Annotations'; // Temporary
-var inbox_location = 'https://lukasvanhoucke.databox.me/Public/Inbox'; // Temporary
-var listing_location = 'https://lukasvanhoucke.databox.me/Public/Listings/test'; // Temporary -- Location where annotation URLs are stored
+var save_location = 'https://lukasvanhoucke.databox.me/Public/Annotations'; // Temporary, use webIDs annotationService for this.
+var inbox_location = 'https://lukasvanhoucke.databox.me/Public/Inbox'; // Temporary -- ldp:inbox
+var listing_location = 'https://lukasvanhoucke.databox.me/Public/Listings/test'; // Temporary -- Location where annotation URLs are stored (server's annotationService)
 /**/
 
 var d = document;
@@ -50,15 +50,16 @@ function htmlEntities(s) {
 }
 
 function notifyInbox(inbox_url, annotation_url) {
-    // TODO Write this function
+    // TODO Should actually place a Linked Data Notification in the server's inbox.
     addToExampleListing(listing_location, annotation_url);
 }
 
 function addToExampleListing(listing_url, annotation_url) {
+  // TODO: The server should actually run this function upon receiving a notification
   var source_url = window.location.href.split('#')[0];
   solid.web.get(listing_url).then(function(response) {
     let graph = response.parsedGraph();
-    graph.add(rdf.sym(source_url), vocab.example('hasAnnotation'), rdf.sym(annotation_url));
+    graph.add(rdf.sym(source_url), vocab.as('items'), rdf.sym(annotation_url));
     var data = new rdf.Serializer(graph).toN3(graph);
     // put
     solid.web.put(listing_url, data).then(function(meta) {
@@ -69,7 +70,7 @@ function addToExampleListing(listing_url, annotation_url) {
     });
   }).catch(function(err) {
     var graph = rdf.graph();
-    graph.add(rdf.sym(source_url), vocab.example('hasAnnotation'), rdf.sym(annotation_url));
+    graph.add(rdf.sym(source_url), vocab.as('items'), rdf.sym(annotation_url));
     var data = new rdf.Serializer(graph).toN3(graph);
     // post
     solid.web.post(listing_location, data, slug).then(function(meta) {
@@ -250,7 +251,7 @@ var LoadHighlightsButton = MediumEditor.extensions.button.extend({
         graph = response.parsedGraph();  // graph is part of rdflib, see link at top of page.
 
         current_url = window.location.href.split('#')[0];
-        graph.each(rdf.sym(current_url), vocab.example('hasAnnotation'), undefined).forEach(function(annotation_url) { // TODO: Change predicate
+        graph.each(rdf.sym(current_url), vocab.as('items'), undefined).forEach(function(annotation_url) { // TODO: Change predicate
             console.log("Found matching annotation: " + annotation_url.value);
             // Do something with annotation
             // e.g. collect prefix, exact and suffix
@@ -604,11 +605,11 @@ var editor = new MediumEditor(document.querySelectorAll(selector), {
   anchorPreview: false,
   extensions: {
     'highlighter': new HighlighterButton(),
-    'loader': new LoadHighlightsButton(),
-    'comment': new CommentButton()
+    'comment': new CommentButton(),
+    'loader': new LoadHighlightsButton()
   },
   toolbar: {
-      buttons: ['highlighter', 'loader', 'comment'],
+      buttons: ['highlighter', 'comment', 'loader'],
       allowMultiParagraphSelection: false
   }
 });
