@@ -44,7 +44,6 @@ vocab.as = ns.base('http://www.w3.org/ns/activitystreams#');
 vocab.example = ns.base('http://www.example.com/ns#'); // TODO: Remove this by finding correct terms
 
 
-
 function htmlEntities(s) {
       return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -52,6 +51,18 @@ function htmlEntities(s) {
 function notifyInbox(inbox_url, annotation_url) {
     // TODO Should actually place a Linked Data Notification in the server's inbox.
     addToExampleListing(listing_location, annotation_url);
+}
+
+function login() {
+    return solid.login() // the browser automatically provides the client key/cert for you
+      .then(webId => {
+        if (!webId) return Promise.reject(new Error("Login failed. Make sure you have a valid WebID and certificate."));
+        console.log('Current WebID: %s', webId);
+
+        // Load extended profile? At the moment: No -- Solid cannot parse text -> leads to issues
+        let options = {ignoreExtended: true};
+        return solid.getProfile(webId, options);
+    });
 }
 
 function addToExampleListing(listing_url, annotation_url) {
@@ -140,6 +151,8 @@ var HighlighterButton = MediumEditor.extensions.button.extend({
   },
 
   handleClick: function (event) {
+    var self = this;
+
     this.base.restoreSelection();
     var range = MediumEditor.selection.getSelectionRange(this.document);
     var selectedParentElement = this.base.getSelectedParentElement();
@@ -164,62 +177,64 @@ var HighlighterButton = MediumEditor.extensions.button.extend({
     console.log('-' + suffix + '-');
     suffix = htmlEntities(suffix);
 
+    login().then(function(profile) {
+      console.log("User logged in: " + profile.name);
+      let annotationService = profile.find(vocab.oa('annotationService'));
 
-    // Create triples with solid
-    var annotation = {
-      source: rdf.sym(window.location.href.split('#')[0]),
-      target: rdf.sym(window.location.href ),
-      author: rdf.sym('https://lukasvanhoucke.databox.me/profile/card#me'),
-      title: rdf.lit("Lukas Vanhoucke created an annotation", 'en'),
-      date: rdf.lit(new Date().toUTCString()),
-      exact: rdf.lit(exact, 'en'), // TODO: Language is not important here? Or is it 'required' for good RDF
-      prefix: rdf.lit(prefix, 'en'),
-      suffix: rdf.lit(suffix, 'en')
-      //comment_text: rdf.lit('Comment text goes here', 'en')
-    }
-    var slug = uuidv1();
+      // Create triples with solid
+      var annotation = {
+        source: rdf.sym(window.location.href.split('#')[0]),
+        author: rdf.sym(profile.webId),
+        title: rdf.lit((profile.name || "Unknown user") + " created an annotation", 'en'),
+        date: rdf.lit(new Date().toUTCString()),
+        exact: rdf.lit(exact, 'en'),
+        prefix: rdf.lit(prefix, 'en'),
+        suffix: rdf.lit(suffix, 'en')
+      }
+      var slug = uuidv1();
 
-    var thisResource = rdf.sym(save_location + '/' + slug); // saves url as NamedNode
-    var selector = rdf.sym(thisResource.uri + '#fragment-selector'); // TODO: Is there a more natural way of creating hash URIs
-    var text_quote_selector = rdf.sym(thisResource.uri + '#text-quote-selector');
+      var thisResource = rdf.sym((annotationService || save_location) + '/' + slug + '.ttl'); // saves url as NamedNode
+      var selector = rdf.sym(thisResource.uri + '#fragment-selector'); // TODO: Is there a more natural way of creating hash URIs
+      var text_quote_selector = rdf.sym(thisResource.uri + '#text-quote-selector');
+      var target = rdf.sym(thisResource.uri + '#target');
 
-    var graph = rdf.graph(); // create an empty graph
+      var graph = rdf.graph(); // create an empty graph
 
-    // Uses WebAnnotations recommended ontologies
-    graph.add(thisResource, vocab.rdf('type'), vocab.oa('Annotation'));
-    graph.add(thisResource, vocab.oa('hasTarget'), annotation.target);
-    graph.add(thisResource, vocab.dct('creator'), annotation.author);
-    graph.add(thisResource, vocab.dct('created'), annotation.date);
-    graph.add(thisResource, vocab.rdfs('label'), annotation.title);
-    graph.add(thisResource, vocab.oa('motivatedBy'), vocab.oa('tagging')); //https://www.w3.org/TR/annotation-vocab/#named-individuals
+      // Uses WebAnnotations recommended ontologies
+      graph.add(thisResource, vocab.rdf('type'), vocab.oa('Annotation'));
+      graph.add(thisResource, vocab.dct('creator'), annotation.author);
+      graph.add(thisResource, vocab.dct('created'), annotation.date);
+      graph.add(thisResource, vocab.rdfs('label'), annotation.title);
+      graph.add(thisResource, vocab.oa('motivatedBy'), vocab.oa('tagging')); //https://www.w3.org/TR/annotation-vocab/#named-individuals
 
-    graph.add(annotation.target, vocab.rdf('type'), vocab.oa('SpecificResource'));
-    graph.add(annotation.target, vocab.oa('hasSelector'), selector);
-    graph.add(annotation.target, vocab.oa('hasSource'), annotation.source);
+      graph.add(thisResource, vocab.oa('hasTarget'), target);
+      graph.add(target, vocab.rdf('type'), vocab.oa('SpecificResource'));
+      graph.add(target, vocab.oa('hasSelector'), selector);
+      graph.add(target, vocab.oa('hasSource'), annotation.source);
 
-    graph.add(selector, vocab.rdf('type'), vocab.oa('FragmentSelector'));
-    graph.add(selector, vocab.oa('refinedBy'), text_quote_selector);
+      graph.add(selector, vocab.rdf('type'), vocab.oa('FragmentSelector'));
+      graph.add(selector, vocab.oa('refinedBy'), text_quote_selector);
 
-    graph.add(text_quote_selector, vocab.rdf('type'), vocab.oa('TextQuoteSelector'));
-    graph.add(text_quote_selector, vocab.oa('exact'), annotation.exact);
-    graph.add(text_quote_selector, vocab.oa('prefix'), annotation.prefix);
-    graph.add(text_quote_selector, vocab.oa('suffix'), annotation.suffix);
+      graph.add(text_quote_selector, vocab.rdf('type'), vocab.oa('TextQuoteSelector'));
+      graph.add(text_quote_selector, vocab.oa('exact'), annotation.exact);
+      graph.add(text_quote_selector, vocab.oa('prefix'), annotation.prefix);
+      graph.add(text_quote_selector, vocab.oa('suffix'), annotation.suffix);
 
-    var data = new rdf.Serializer(graph).toN3(graph); // create Notation3 serialization
-    solid.web.post(save_location, data, slug).then(function(meta) {
-        var url = meta.url;
-        console.log("Comment was saved at " + url);
-        // TODO: POST notification to inbox of webpage (ldp:inbox in RDFa)
-        notifyInbox(inbox_location, url);
-    }).catch(function(err) {
-        // do something with the error
-        console.log(err);
+      var data = new rdf.Serializer(graph).toN3(graph); // create Notation3 serialization
+
+      console.log("Annotation service: " + annotationService);
+      solid.web.post((annotationService || save_location), data, slug).then(function(meta) {
+          var url = meta.url;
+          console.log("Comment was saved at " + url);
+          self.classApplier.toggleSelection(); // toggle highlight
+          self.base.checkContentChanged();
+          // TODO: POST notification to inbox of webpage (ldp:inbox in RDFa)
+          notifyInbox(inbox_location, url);
+      }).catch(function(err) {
+          // do something with the error
+          console.log(err);
+      });
     });
-
-
-    this.classApplier.toggleSelection(); // toggle highlight
-    this.base.checkContentChanged();
-
   }
 });
 
@@ -498,6 +513,8 @@ var CommentButton = MediumEditor.extensions.form.extend({
             // Clicking Save -> create the anchor
             event.preventDefault();
 
+            var self = this;
+
             this.base.restoreSelection();
             var range = MediumEditor.selection.getSelectionRange(this.document);
             var selectedParentElement = this.base.getSelectedParentElement();
@@ -522,70 +539,74 @@ var CommentButton = MediumEditor.extensions.form.extend({
             console.log('-' + suffix + '-');
             suffix = htmlEntities(suffix);
 
+            login().then(function(profile) {
+              console.log("User logged in: " + profile.name);
+              let annotationService = profile.find(vocab.oa('annotationService'));
 
-            // Create triples with solid
-            var annotation = {
-              source: rdf.sym(window.location.href.split('#')[0]),
-              target: rdf.sym(window.location.href ),
-              author: rdf.sym('https://lukasvanhoucke.databox.me/profile/card#me'),
-              title: rdf.lit("Lukas Vanhoucke created an annotation", 'en'),
-              date: rdf.lit(new Date().toUTCString()),
-              exact: rdf.lit(exact, 'en'), // TODO: Language is not important here? Or is it 'required' for good RDF
-              prefix: rdf.lit(prefix, 'en'),
-              suffix: rdf.lit(suffix, 'en'),
-              comment_text: rdf.lit(this.getInput().value.trim(), 'en')
-            };
+              // Create triples with solid
+              var annotation = {
+                source: rdf.sym(window.location.href.split('#')[0]),
+                author: rdf.sym(profile.webId),
+                title: rdf.lit((profile.name || "Unknown user") + " created an annotation", 'en'),
+                date: rdf.lit(new Date().toUTCString()),
+                exact: rdf.lit(exact, 'en'), // TODO: Language is not important here? Or is it 'required' for good RDF
+                prefix: rdf.lit(prefix, 'en'),
+                suffix: rdf.lit(suffix, 'en'),
+                comment_text: rdf.lit(self.getInput().value.trim(), 'en')
+              };
 
-            var slug = uuidv1();
+              var slug = uuidv1();
 
-            var thisResource = rdf.sym(save_location + '/' + slug); // saves url as NamedNode
-            var selector = rdf.sym(thisResource.uri + '#fragment-selector'); // TODO: Is there a more natural way of creating hash URIs
-            var text_quote_selector = rdf.sym(thisResource.uri + '#text-quote-selector');
+              var thisResource = rdf.sym((annotationService || save_location) + '/' + slug + '.ttl'); // saves url as NamedNode
+              var selector = rdf.sym(thisResource.uri + '#fragment-selector'); // TODO: Is there a more natural way of creating hash URIs
+              var text_quote_selector = rdf.sym(thisResource.uri + '#text-quote-selector');
+              var target = rdf.sym(thisResource.uri + '#target');
 
-            var graph = rdf.graph(); // create an empty graph
+              var graph = rdf.graph(); // create an empty graph
 
-            // Uses WebAnnotations recommended ontologies
-            graph.add(thisResource, vocab.rdf('type'), vocab.oa('Annotation'));
-            graph.add(thisResource, vocab.oa('hasTarget'), annotation.target);
-            graph.add(thisResource, vocab.dct('creator'), annotation.author);
-            graph.add(thisResource, vocab.dct('created'), annotation.date);
-            graph.add(thisResource, vocab.rdfs('label'), annotation.title);
-            graph.add(thisResource, vocab.oa('motivatedBy'), vocab.oa('commenting')); //https://www.w3.org/TR/annotation-vocab/#named-individuals
+              // Uses WebAnnotations recommended ontologies
+              graph.add(thisResource, vocab.rdf('type'), vocab.oa('Annotation'));
+              graph.add(thisResource, vocab.dct('creator'), annotation.author);
+              graph.add(thisResource, vocab.dct('created'), annotation.date);
+              graph.add(thisResource, vocab.rdfs('label'), annotation.title);
+              graph.add(thisResource, vocab.oa('motivatedBy'), vocab.oa('commenting')); //https://www.w3.org/TR/annotation-vocab/#named-individuals
 
-            graph.add(annotation.target, vocab.rdf('type'), vocab.oa('SpecificResource'));
-            graph.add(annotation.target, vocab.oa('hasSelector'), selector);
-            graph.add(annotation.target, vocab.oa('hasSource'), annotation.source);
+              graph.add(thisResource, vocab.oa('hasTarget'), target);
+              graph.add(target, vocab.rdf('type'), vocab.oa('SpecificResource'));
+              graph.add(target, vocab.oa('hasSelector'), selector);
+              graph.add(target, vocab.oa('hasSource'), annotation.source);
 
-            graph.add(selector, vocab.rdf('type'), vocab.oa('FragmentSelector'));
-            graph.add(selector, vocab.oa('refinedBy'), text_quote_selector);
+              graph.add(selector, vocab.rdf('type'), vocab.oa('FragmentSelector'));
+              graph.add(selector, vocab.oa('refinedBy'), text_quote_selector);
 
-            graph.add(text_quote_selector, vocab.rdf('type'), vocab.oa('TextQuoteSelector'));
-            graph.add(text_quote_selector, vocab.oa('exact'), annotation.exact);
-            graph.add(text_quote_selector, vocab.oa('prefix'), annotation.prefix);
-            graph.add(text_quote_selector, vocab.oa('suffix'), annotation.suffix);
+              graph.add(text_quote_selector, vocab.rdf('type'), vocab.oa('TextQuoteSelector'));
+              graph.add(text_quote_selector, vocab.oa('exact'), annotation.exact);
+              graph.add(text_quote_selector, vocab.oa('prefix'), annotation.prefix);
+              graph.add(text_quote_selector, vocab.oa('suffix'), annotation.suffix);
 
-            var body = rdf.sym(thisResource.uri + '#body'); // TODO: Extend for multiple bodies
-            graph.add(thisResource, vocab.oa('hasBody'), body);
-            graph.add(body, vocab.rdf('type'), vocab.oa('TextualBody'));
-            graph.add(body, vocab.rdf('value'), annotation.comment_text);
+              var body = rdf.sym(thisResource.uri + '#body'); // TODO: Extend for multiple bodies
+              graph.add(thisResource, vocab.oa('hasBody'), body);
+              graph.add(body, vocab.rdf('type'), vocab.oa('TextualBody'));
+              graph.add(body, vocab.rdf('value'), annotation.comment_text);
 
-            var data = new rdf.Serializer(graph).toN3(graph); // create Notation3 serialization
-            solid.web.post(save_location, data, slug).then(function(meta) {
-                var url = meta.url;
-                console.log("Comment was saved at " + url);
-                // TODO: POST notification to inbox of webpage (ldp:inbox in RDFa)
-                notifyInbox(inbox_location, url);
-            }).catch(function(err) {
-                // do something with the error
-                console.log(err);
+              var data = new rdf.Serializer(graph).toN3(graph); // create Notation3 serialization
+              solid.web.post((annotationService || save_location), data, slug).then(function(meta) {
+                  var url = meta.url;
+                  console.log("Comment was saved at " + url);
+                  // TODO: POST notification to inbox of webpage (ldp:inbox in RDFa)
+                  notifyInbox(inbox_location, url);
+              }).catch(function(err) {
+                  // do something with the error
+                  console.log(err);
+              });
+
+              let classApplier = getCommentClassApplier(self.getInput().value.trim());
+
+              classApplier.toggleSelection(); // toggle highlight
+              self.base.checkContentChanged();
+
+              self.doFormSave();
             });
-
-            let classApplier = getCommentClassApplier(this.getInput().value.trim());
-
-            classApplier.toggleSelection(); // toggle highlight
-            this.base.checkContentChanged();
-
-            this.doFormSave();
         },
 
         handleCloseClick: function (event) {
