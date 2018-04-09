@@ -24,11 +24,8 @@ vocab.as = ns.base('http://www.w3.org/ns/activitystreams#');
 vocab.example = ns.base('http://www.example.com/ns#'); // TODO: Remove this by finding correct terms
 
 
-const web_workers = 10; // Cannot create all annotations at the same time, so divide work.
-                        // TODO http://doduck.com/concurrent-requests-node-js/
-
-const fragments = ["introduction", "chapter_one", "chapter_two", "listing_one",
- "listing_two", "listing_three", "conclusion", "sources", "comments", "about"];
+// const fragments = ["introduction", "chapter_one", "chapter_two", "listing_one",
+//  "listing_two", "listing_three", "conclusion", "sources", "comments", "about"];
 const content = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
 
 
@@ -125,19 +122,20 @@ const content = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
    });
  }
 
- // Generate annotation for randomly chosen user on a randomly chosen website + fragment
+ // Generate annotation for randomly chosen user on a randomly chosen website
  // Generates random title, text, date
- function generateAnnotations(number_of_annotations, users, websites, fragments, annotations) {
+ function generateAnnotations(number_of_annotations, users, websites, annotations) {
+ // function generateAnnotations(number_of_annotations, users, websites, fragments, annotations) {
    return new Promise(function(resolve, reject) {
      let annotations_timer = hrtime();
      for (let i = 0; i < number_of_annotations; i++) {
        let user_id = Math.floor(Math.random() * users.length);
        let website_id = Math.floor(Math.random() * websites.length);
-       let fragment_id = Math.floor(Math.random() * fragments.length);
+       // let fragment_id = Math.floor(Math.random() * fragments.length);
 
        let user = users[user_id];
        let website = websites[website_id];
-       let fragment = fragments[fragment_id];
+       // let fragment = fragments[fragment_id];
 
        let comment = content.split(" ");
        let lower_comment_bound = Math.floor(Math.random() * comment.length)
@@ -147,7 +145,8 @@ const content = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
        let username = user.name || (user.firstName + " " + user.lastName) || "Username";
        let author = user.card || user.directory + '/card#me';
        let annotation = {
-         source: rdf.sym(website + '#' + fragment),
+         // source: rdf.sym(website + '#' + fragment),
+         source: rdf.sym(website),
          author: rdf.sym(author),  // This does not actually exist
          title: rdf.lit(username + " created an annotation", 'en'),
          date: rdf.lit(new Date().toUTCString()), // TODO
@@ -205,7 +204,8 @@ const content = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
          var url = meta.url;
          annotations.push(url);
          console.log("Annotation " + annotations.length + " created at " + url + " (" + elapsed + " ms)");
-         showAnnotation(meta.url, user, website + '#' + fragment)
+         // showAnnotation(meta.url, user, website + '#' + fragment)
+         showAnnotation(meta.url, user, website)
          if (annotations.length == number_of_annotations) {
            elapsedS = hrtime(annotations_timer)[0];
            elapsedMs = hrtime(annotations_timer)[1] / 1e6;
@@ -297,7 +297,8 @@ function generate(number_of_annotations, number_of_users, number_of_websites) {
         return generateWebsites(number_of_websites, websites);
       }).then(function() {
         console.log("Websites created");
-        return generateAnnotations(number_of_annotations, users, websites, fragments, annotations);
+        // return generateAnnotations(number_of_annotations, users, websites, fragments, annotations);
+        return generateAnnotations(number_of_annotations, users, websites, annotations);
       }).then(function() {
         return generateSPARQLAnnotations(annotations);
       }).then(function() {
