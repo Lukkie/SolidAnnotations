@@ -50,6 +50,7 @@ function htmlEntities(s) {
 
 function notifyInbox(inbox_url, annotation_url) {
     // TODO Should actually place a Linked Data Notification in the server's inbox.
+    // listing_location = save_location + '/listing';
     addToExampleListing(listing_location, annotation_url);
 }
 
@@ -67,6 +68,7 @@ function login() {
 
 function addToExampleListing(listing_url, annotation_url) {
   // TODO: The server should actually run this function upon receiving a notification
+  // Since this plugin does not have access to the server, this workaround is used.
   var source_url = window.location.href.split('#')[0];
   solid.web.get(listing_url).then(function(response) {
     let graph = response.parsedGraph();
@@ -84,7 +86,8 @@ function addToExampleListing(listing_url, annotation_url) {
     graph.add(rdf.sym(source_url), vocab.as('items'), rdf.sym(annotation_url));
     var data = new rdf.Serializer(graph).toN3(graph);
     // post
-    solid.web.post(listing_location, data, slug).then(function(meta) {
+    let location = listing_location.split('/').slice(0, -1).join('/');
+    solid.web.post(location, data, 'listing').then(function(meta) {
         var url = meta.url;
         console.log("Annotations were saved at " + url);
     }).catch(function(err) {
@@ -180,6 +183,9 @@ var HighlighterButton = MediumEditor.extensions.button.extend({
     login().then(function(profile) {
       console.log("User logged in: " + profile.name);
       let annotationService = profile.find(vocab.oa('annotationService'));
+      save_location = annotationService || save_location;
+      // Determine listing location -- Note: In reality, this is the server's annotationService!
+      listing_location = profile.storage ? profile.storage + '/listing.ttl' : listing_location;
 
       // Create triples with solid
       var annotation = {
@@ -193,7 +199,7 @@ var HighlighterButton = MediumEditor.extensions.button.extend({
       }
       var slug = uuidv1();
 
-      var thisResource = rdf.sym((annotationService || save_location) + '/' + slug + '.ttl'); // saves url as NamedNode
+      var thisResource = rdf.sym(save_location + '/' + slug + '.ttl'); // saves url as NamedNode
       var selector = rdf.sym(thisResource.uri + '#fragment-selector'); // TODO: Is there a more natural way of creating hash URIs
       var text_quote_selector = rdf.sym(thisResource.uri + '#text-quote-selector');
       var target = rdf.sym(thisResource.uri + '#target');
@@ -223,7 +229,7 @@ var HighlighterButton = MediumEditor.extensions.button.extend({
       var data = new rdf.Serializer(graph).toN3(graph); // create Notation3 serialization
 
       console.log("Annotation service: " + annotationService);
-      solid.web.post((annotationService || save_location), data, slug).then(function(meta) {
+      solid.web.post(save_location, data, slug).then(function(meta) {
           var url = meta.url;
           console.log("Comment was saved at " + url);
           self.classApplier.toggleSelection(); // toggle highlight
@@ -262,47 +268,50 @@ var LoadHighlightsButton = MediumEditor.extensions.button.extend({
 
   handleClick: function (event) {
     var self = this;
-    solid.web.get(listing_location).then(function(response) {
-        graph = response.parsedGraph();  // graph is part of rdflib, see link at top of page.
+    login().then(function(profile) {
+      // Determine listing location -- Note: In reality, this is the server's annotationService!
+      listing_location = profile.storage ? profile.storage + '/listing.ttl' : listing_location;
+      solid.web.get(listing_location).then(function(response) {
+          graph = response.parsedGraph();  // graph is part of rdflib, see link at top of page.
 
-        current_url = window.location.href.split('#')[0];
-        graph.each(rdf.sym(current_url), vocab.as('items'), undefined).forEach(function(annotation_url) { // TODO: Change predicate
-            console.log("Found matching annotation: " + annotation_url.value);
-            // Do something with annotation
-            // e.g. collect prefix, exact and suffix
-            solid.web.get(annotation_url.value).then(function(response) {
-                let annotation_graph = response.parsedGraph();
-                let motivation = annotation_graph.any(annotation_url, vocab.oa('hasTarget'), undefined);
-                let selector = annotation_graph.any(motivation, vocab.oa('hasSelector'), undefined);
-                let text_quote = annotation_graph.any(selector, vocab.oa('refinedBy'), undefined);
+          current_url = window.location.href.split('#')[0];
+          graph.each(rdf.sym(current_url), vocab.as('items'), undefined).forEach(function(annotation_url) { // TODO: Change predicate
+              console.log("Found matching annotation: " + annotation_url.value);
+              // Do something with annotation
+              // e.g. collect prefix, exact and suffix
+              solid.web.get(annotation_url.value).then(function(response) {
+                  let annotation_graph = response.parsedGraph();
+                  let motivation = annotation_graph.any(annotation_url, vocab.oa('hasTarget'), undefined);
+                  let selector = annotation_graph.any(motivation, vocab.oa('hasSelector'), undefined);
+                  let text_quote = annotation_graph.any(selector, vocab.oa('refinedBy'), undefined);
 
-                let prefix = annotation_graph.any(text_quote, vocab.oa('prefix'), undefined);
-                let exact = annotation_graph.any(text_quote, vocab.oa('exact'), undefined);
-                let suffix = annotation_graph.any(text_quote, vocab.oa('suffix'), undefined);
+                  let prefix = annotation_graph.any(text_quote, vocab.oa('prefix'), undefined);
+                  let exact = annotation_graph.any(text_quote, vocab.oa('exact'), undefined);
+                  let suffix = annotation_graph.any(text_quote, vocab.oa('suffix'), undefined);
 
-                console.log(prefix.value + '] ' + exact.value + ' [' + suffix.value);
-                if (annotation_graph.any(annotation_url, vocab.oa('hasBody'), undefined)) {
-                    let body = annotation_graph.any(annotation_url, vocab.oa('hasBody'), undefined);
-                    let comment_value = annotation_graph.any(body, vocab.rdf('value'), undefined);
+                  console.log(prefix.value + '] ' + exact.value + ' [' + suffix.value);
+                  if (annotation_graph.any(annotation_url, vocab.oa('hasBody'), undefined)) {
+                      let body = annotation_graph.any(annotation_url, vocab.oa('hasBody'), undefined);
+                      let comment_value = annotation_graph.any(body, vocab.rdf('value'), undefined);
 
-                    let classApplier = getCommentClassApplier(comment_value);
-                    applyHighlight(prefix.value, exact.value, suffix.value, classApplier);
-                } else {
-                    applyHighlight(prefix.value, exact.value, suffix.value, self.highlightClassApplier);
-                }
-            }).catch(function(err) {
-                // do something with the error
-                console.log("Received error: " + err.stack);
-            });
-        });
-    })
-    .catch(function(err) {
-        // do something with the error
-        console.log("Received error: " + err);
+                      let classApplier = getCommentClassApplier(comment_value);
+                      applyHighlight(prefix.value, exact.value, suffix.value, classApplier);
+                  } else {
+                      applyHighlight(prefix.value, exact.value, suffix.value, self.highlightClassApplier);
+                  }
+              }).catch(function(err) {
+                  // do something with the error
+                  console.log("Received error: " + err.stack);
+              });
+          });
+      })
+      .catch(function(err) {
+          // do something with the error
+          console.log("Received error: " + err);
+      });
+
+      self.base.checkContentChanged();
     });
-
-    this.base.checkContentChanged();
-
   }
 });
 
@@ -542,6 +551,9 @@ var CommentButton = MediumEditor.extensions.form.extend({
             login().then(function(profile) {
               console.log("User logged in: " + profile.name);
               let annotationService = profile.find(vocab.oa('annotationService'));
+              save_location = annotationService || save_location;
+              // Determine listing location -- Note: In reality, this is the server's annotationService!
+              listing_location = profile.storage ? profile.storage + '/listing.ttl' : listing_location;
 
               // Create triples with solid
               var annotation = {
@@ -557,7 +569,7 @@ var CommentButton = MediumEditor.extensions.form.extend({
 
               var slug = uuidv1();
 
-              var thisResource = rdf.sym((annotationService || save_location) + '/' + slug + '.ttl'); // saves url as NamedNode
+              var thisResource = rdf.sym(save_location + '/' + slug + '.ttl'); // saves url as NamedNode
               var selector = rdf.sym(thisResource.uri + '#fragment-selector'); // TODO: Is there a more natural way of creating hash URIs
               var text_quote_selector = rdf.sym(thisResource.uri + '#text-quote-selector');
               var target = rdf.sym(thisResource.uri + '#target');
@@ -590,7 +602,7 @@ var CommentButton = MediumEditor.extensions.form.extend({
               graph.add(body, vocab.rdf('value'), annotation.comment_text);
 
               var data = new rdf.Serializer(graph).toN3(graph); // create Notation3 serialization
-              solid.web.post((annotationService || save_location), data, slug).then(function(meta) {
+              solid.web.post(save_location, data, slug).then(function(meta) {
                   var url = meta.url;
                   console.log("Comment was saved at " + url);
                   // TODO: POST notification to inbox of webpage (ldp:inbox in RDFa)
