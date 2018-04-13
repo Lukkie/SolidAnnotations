@@ -245,10 +245,10 @@ function generateSPARQLAnnotations(annotations, isOneGraph) {
           let elapsed = 1000*elapsedS + elapsedMs;
           let annotation_split = annotation.split('/');
           if (isOneGraph) {
-            console.log("(" + i + ") Succesfully added data of " + annotation + ' to the graph (' + elapsed + " ms)");
+            console.log("(" + i + ") Single graph -- Succesfully added data of " + annotation + ' to the graph (' + elapsed + " ms)");
           }
           else {
-            console.log("(" + i + ") Succesfully created graph of " + annotation +" ( " +
+            console.log("(" + i + ") Multiple graphs -- Succesfully created graph of " + annotation +" ( " +
               endpoint + '/' + annotation_split[annotation_split.length - 2]  +
               '/' + annotation_split[annotation_split.length - 1] + ' ) (' + elapsed + " ms)");
           }
@@ -478,7 +478,7 @@ function showAnnotation(annotation_url, user, site) {
 
   // append to list
   let newListItem = document.createElement('li');
-  newListItem.appendChild(document.createTextNode(user.firstName + " " + user.lastName + " (" + user.id + ") created an annotation for \"" + site +
+  newListItem.appendChild(document.createTextNode( (user.name||(user.firstName + " " + user.lastName)) + " (" + user.id + ") created an annotation for \"" + site +
   "\" stored at "));
 
   let link = document.createElement('a');
