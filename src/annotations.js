@@ -13,7 +13,8 @@ const util = require('./util.js');
 
 css_files = ["https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css", // font awesome
              "//cdn.jsdelivr.net/npm/medium-editor@latest/dist/css/medium-editor.min.css", // core medium editor CSS
-             "https://www.dropbox.com/s/102ds8wnn9kscqm/flat-theme.css?raw=1"] // medium theme CSS (can be swapped)
+             "https://www.dropbox.com/s/102ds8wnn9kscqm/flat-theme.css?raw=1", // medium theme CSS (can be swapped)
+             "https://www.dropbox.com/s/azniofmg3t0ai9o/annotations.css?raw=1"] // Custom CSS for annotation plugin (e.g. for button to load all annotations)
 
 /** Config **/
 var selector = '.slide';
@@ -121,12 +122,22 @@ function getCommentClassApplier(comment_value) {
       }
     },
     elementAttributes: {
-      value: comment_value // TODO:Temporary, also XSS possible? I dont think so.
+      title: comment_value // TODO:Temporary, also XSS possible? I dont think so.
                   // XSS"><script>alert("XSS ALERT");</script><comment value="
     }
   });
   return classApplier;
 }
+
+highlightClassApplier = rangyClassApplier.createClassApplier('highlight', {
+  elementTagName: 'highlight', // Was originally mark, but intervened with UGent Shower CSS
+  normalize: true,
+  elementProperties: {
+    style: {
+      'background-color': 'yellow'
+    }
+  }
+});
 
 // Function is used in handleSaveClick and handleClick for highlights and comments
 function saveAnnotation(self, isComment) {
@@ -218,7 +229,7 @@ function saveAnnotation(self, isComment) {
         notifyInbox(inbox_location, url);
 
         let classApplier = isComment ? getCommentClassApplier(self.getInput().value.trim())
-                                     : self.classApplier;
+                                     : highlightClassApplier;
         classApplier.toggleSelection(); // toggle highlight
 
     }).catch(function(err) {
@@ -244,92 +255,11 @@ var HighlighterButton = MediumEditor.extensions.button.extend({
 
   init: function () {
     MediumEditor.extensions.button.prototype.init.call(this);
-
-    this.classApplier = rangyClassApplier.createClassApplier('highlight', {
-      elementTagName: 'highlight', // Was originally mark, but intervened with UGent Shower CSS
-      normalize: true,
-      elementProperties: {
-        style: {
-          'background-color': 'yellow'
-        }
-      }
-    });
   },
 
   handleClick: function (event) {
     var self = this;
     saveAnnotation(self, false);
-  }
-});
-
-var LoadHighlightsButton = MediumEditor.extensions.button.extend({
-  name: 'loader',
-
-  tagNames: ['load'], // nodeName which indicates the button should be 'active' when isAlreadyApplied() is called
-  contentDefault: '<b>Load</b>', // default innerHTML of the button
-  contentFA: '<i class="fa fa-download"></i>', // innerHTML of button when 'fontawesome' is being used
-  aria: 'Load', // used as both aria-label and title attributes
-  action: 'load', // used as the data-action attribute of the button
-
-  init: function () {
-    MediumEditor.extensions.button.prototype.init.call(this);
-    this.highlightClassApplier = rangyClassApplier.createClassApplier('highlight', {
-      elementTagName: 'highlight', // Was originally mark, but intervened with UGent Shower CSS
-      normalize: true,
-      elementProperties: {
-        style: {
-          'background-color': 'yellow'
-        }
-      }
-    });
-  },
-
-  handleClick: function (event) {
-    var self = this;
-    login().then(function(profile) {
-      // Determine listing location -- Note: In reality, this is the server's annotationService!
-      listing_location = profile.storage ? profile.storage + '/listing.ttl' : listing_location;
-      solid.web.get(listing_location).then(function(response) {
-          graph = response.parsedGraph();  // graph is part of rdflib, see link at top of page.
-
-          current_url = window.location.href.split('#')[0];
-          graph.each(rdf.sym(current_url), vocab.as('items'), undefined).forEach(function(annotation_url) { // TODO: Change predicate
-              console.log("Found matching annotation: " + annotation_url.value);
-              // Do something with annotation
-              // e.g. collect prefix, exact and suffix
-              solid.web.get(annotation_url.value).then(function(response) {
-                  let annotation_graph = response.parsedGraph();
-                  let motivation = annotation_graph.any(annotation_url, vocab.oa('hasTarget'), undefined);
-                  let selector = annotation_graph.any(motivation, vocab.oa('hasSelector'), undefined);
-                  let text_quote = annotation_graph.any(selector, vocab.oa('refinedBy'), undefined);
-
-                  let prefix = annotation_graph.any(text_quote, vocab.oa('prefix'), undefined);
-                  let exact = annotation_graph.any(text_quote, vocab.oa('exact'), undefined);
-                  let suffix = annotation_graph.any(text_quote, vocab.oa('suffix'), undefined);
-
-                  console.log(prefix.value + '] ' + exact.value + ' [' + suffix.value);
-                  if (annotation_graph.any(annotation_url, vocab.oa('hasBody'), undefined)) {
-                      let body = annotation_graph.any(annotation_url, vocab.oa('hasBody'), undefined);
-                      let comment_value = annotation_graph.any(body, vocab.rdf('value'), undefined);
-
-                      let classApplier = getCommentClassApplier(comment_value);
-                      applyHighlight(prefix.value, exact.value, suffix.value, classApplier);
-                  } else {
-                      applyHighlight(prefix.value, exact.value, suffix.value, self.highlightClassApplier);
-                  }
-              }).catch(function(err) {
-                  // do something with the error
-                  console.log("Received error: " + err.stack);
-              });
-          });
-      })
-      .catch(function(err) {
-          // do something with the error
-          console.log("Received error: " + err);
-      });
-
-      self.base.checkContentChanged();
-    });
   }
 });
 
@@ -349,15 +279,6 @@ var CommentButton = MediumEditor.extensions.form.extend({
 
         init: function () {
             MediumEditor.extensions.form.prototype.init.apply(this, arguments);
-            this.classApplier = rangyClassApplier.createClassApplier('comment', {
-              elementTagName: 'comment', // Was originally mark, but intervened with UGent Shower CSS
-              normalize: true,
-              elementProperties: {
-                style: {
-                  'background-color': 'orange'
-                }
-              }
-            });
             this.subscribe('editableKeydown', this.handleKeydown.bind(this));
         },
 
@@ -367,10 +288,8 @@ var CommentButton = MediumEditor.extensions.form.extend({
             event.preventDefault();
             event.stopPropagation();
 
-            if (!this.classApplier.isAppliedToSelection()) {
-              this.base.checkContentChanged();
-              this.showForm();
-            } else console.log("Text is already highlighted.");
+            this.base.checkContentChanged();
+            this.showForm();
             return false;
         },
 
@@ -550,7 +469,7 @@ var CommentButton = MediumEditor.extensions.form.extend({
         }
 });
 
-var editor = new MediumEditor(document.querySelectorAll(selector), {
+window.editor = new MediumEditor(document.querySelectorAll(selector), {
   // TODO: Editor is not centered because of the way Open Webslides is programmed
   // (Try zooming in and out, slide stays same size, but position of editor changes)
   // Displaying slides on chrome with console (Ctrl+Shift+i) is correct.
@@ -560,13 +479,70 @@ var editor = new MediumEditor(document.querySelectorAll(selector), {
   anchorPreview: false,
   extensions: {
     'highlighter': new HighlighterButton(),
-    'comment': new CommentButton(),
-    'loader': new LoadHighlightsButton()
+    'comment': new CommentButton()
   },
   toolbar: {
-      buttons: ['highlighter', 'comment', 'loader'],
+      buttons: ['highlighter', 'comment'],
       allowMultiParagraphSelection: false
   }
 });
 
-window.editor = editor;
+var loadIcon = '<i class="fa fa-download"></i>';
+var floatingLoadButton = document.createElement("button");
+floatingLoadButton.innerHTML = loadIcon;
+floatingLoadButton.id = 'floatingButton'
+document.body.appendChild(floatingLoadButton);
+floatingLoadButton.onmouseover = function() {
+  floatingLoadButton.innerHTML = 'Load annotations';
+}
+floatingLoadButton.onmouseout = function() {
+  floatingLoadButton.innerHTML = loadIcon;
+}
+floatingLoadButton.onclick = function() {
+  console.log("CLICKED");
+  login().then(function(profile) {
+    // Determine listing location -- Note: In reality, this is the server's annotationService!
+    listing_location = profile.storage ? profile.storage + '/listing.ttl' : listing_location;
+    solid.web.get(listing_location).then(function(response) {
+        graph = response.parsedGraph();  // graph is part of rdflib, see link at top of page.
+
+        current_url = window.location.href.split('#')[0];
+        graph.each(rdf.sym(current_url), vocab.as('items'), undefined).forEach(function(annotation_url) { // TODO: Change predicate
+            console.log("Found matching annotation: " + annotation_url.value);
+            // Do something with annotation
+            // e.g. collect prefix, exact and suffix
+            solid.web.get(annotation_url.value).then(function(response) {
+                let annotation_graph = response.parsedGraph();
+                let motivation = annotation_graph.any(annotation_url, vocab.oa('hasTarget'), undefined);
+                let selector = annotation_graph.any(motivation, vocab.oa('hasSelector'), undefined);
+                let text_quote = annotation_graph.any(selector, vocab.oa('refinedBy'), undefined);
+
+                let prefix = annotation_graph.any(text_quote, vocab.oa('prefix'), undefined);
+                let exact = annotation_graph.any(text_quote, vocab.oa('exact'), undefined);
+                let suffix = annotation_graph.any(text_quote, vocab.oa('suffix'), undefined);
+
+                console.log(prefix.value + '] ' + exact.value + ' [' + suffix.value);
+                if (annotation_graph.any(annotation_url, vocab.oa('hasBody'), undefined)) {
+                    let body = annotation_graph.any(annotation_url, vocab.oa('hasBody'), undefined);
+                    let comment_value = annotation_graph.any(body, vocab.rdf('value'), undefined);
+
+                    let classApplier = getCommentClassApplier(comment_value);
+                    applyHighlight(prefix.value, exact.value, suffix.value, classApplier);
+                } else {
+                    applyHighlight(prefix.value, exact.value, suffix.value, highlightClassApplier);
+                }
+            }).catch(function(err) {
+                // do something with the error
+                console.log("Received error: " + err.stack);
+            });
+        });
+    })
+    .catch(function(err) {
+        // do something with the error
+        console.log("Received error: " + err);
+    });
+  }).catch(function(err) {
+      // do something with the error
+      console.log("Received error: " + err);
+  });
+}
