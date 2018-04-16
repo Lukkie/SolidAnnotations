@@ -130,7 +130,7 @@ function getCommentClassApplier(comment_value) {
 
 // Function is used in handleSaveClick and handleClick for highlights and comments
 function saveAnnotation(self, isComment) {
-  self.base.restoreSelection();
+  if (isComment) self.base.restoreSelection();
   var range = MediumEditor.selection.getSelectionRange(self.document);
   var selectedParentElement = self.base.getSelectedParentElement();
   console.log('getSelectedParentElement:');
@@ -258,95 +258,7 @@ var HighlighterButton = MediumEditor.extensions.button.extend({
 
   handleClick: function (event) {
     var self = this;
-
-    // saveAnnotation(self, false);
-
-
-    this.base.restoreSelection();
-    var range = MediumEditor.selection.getSelectionRange(this.document);
-    var selectedParentElement = this.base.getSelectedParentElement();
-    console.log('getSelectedParentElement:');
-    console.log(selectedParentElement);
-
-    // Determine selection and context
-    this.base.selectedDocument = this.document;
-    this.base.selection = MediumEditor.selection.getSelectionHtml(this.base.selectedDocument);
-
-    var exact = this.base.selection;
-    var selectionState = MediumEditor.selection.exportSelection(selectedParentElement, this.document);
-    var start = selectionState.start;
-    var end = selectionState.end;
-    var prefixStart = Math.max(0, start - contextLength);
-    var prefix = selectedParentElement.textContent.substr(prefixStart, start - prefixStart);
-    prefix = htmlEntities(prefix);
-
-    var suffixEnd = Math.min(selectedParentElement.textContent.length, end + contextLength);
-    console.log('sE ' + suffixEnd);
-    var suffix = selectedParentElement.textContent.substr(end, suffixEnd - end);
-    console.log('-' + suffix + '-');
-    suffix = htmlEntities(suffix);
-
-    login().then(function(profile) {
-      console.log("User logged in: " + profile.name);
-      let annotationService = profile.find(vocab.oa('annotationService'));
-      save_location = annotationService || save_location;
-      // Determine listing location -- Note: In reality, this is the server's annotationService!
-      listing_location = profile.storage ? profile.storage + '/listing.ttl' : listing_location;
-
-      // Create triples with solid
-      var annotation = {
-        source: rdf.sym(window.location.href.split('#')[0]),
-        author: rdf.sym(profile.webId),
-        title: rdf.lit((profile.name || "Unknown user") + " created an annotation", 'en'),
-        date: rdf.lit(new Date().toUTCString()),
-        exact: rdf.lit(exact, 'en'),
-        prefix: rdf.lit(prefix, 'en'),
-        suffix: rdf.lit(suffix, 'en')
-      }
-      var slug = uuidv1();
-
-      var thisResource = rdf.sym(save_location + '/' + slug + '.ttl'); // saves url as NamedNode
-      var selector = rdf.sym(thisResource.uri + '#fragment-selector'); // TODO: Is there a more natural way of creating hash URIs
-      var text_quote_selector = rdf.sym(thisResource.uri + '#text-quote-selector');
-      var target = rdf.sym(thisResource.uri + '#target');
-
-      var graph = rdf.graph(); // create an empty graph
-
-      // Uses WebAnnotations recommended ontologies
-      graph.add(thisResource, vocab.rdf('type'), vocab.oa('Annotation'));
-      graph.add(thisResource, vocab.dct('creator'), annotation.author);
-      graph.add(thisResource, vocab.dct('created'), annotation.date);
-      graph.add(thisResource, vocab.rdfs('label'), annotation.title);
-      graph.add(thisResource, vocab.oa('motivatedBy'), vocab.oa('tagging')); //https://www.w3.org/TR/annotation-vocab/#named-individuals
-
-      graph.add(thisResource, vocab.oa('hasTarget'), target);
-      graph.add(target, vocab.rdf('type'), vocab.oa('SpecificResource'));
-      graph.add(target, vocab.oa('hasSelector'), selector);
-      graph.add(target, vocab.oa('hasSource'), annotation.source);
-
-      graph.add(selector, vocab.rdf('type'), vocab.oa('FragmentSelector'));
-      graph.add(selector, vocab.oa('refinedBy'), text_quote_selector);
-
-      graph.add(text_quote_selector, vocab.rdf('type'), vocab.oa('TextQuoteSelector'));
-      graph.add(text_quote_selector, vocab.oa('exact'), annotation.exact);
-      graph.add(text_quote_selector, vocab.oa('prefix'), annotation.prefix);
-      graph.add(text_quote_selector, vocab.oa('suffix'), annotation.suffix);
-
-      var data = new rdf.Serializer(graph).toN3(graph); // create Notation3 serialization
-
-      console.log("Annotation service: " + annotationService);
-      solid.web.post(save_location, data, slug).then(function(meta) {
-          var url = meta.url;
-          console.log("Comment was saved at " + url);
-          self.classApplier.toggleSelection(); // toggle highlight
-          self.base.checkContentChanged();
-          // TODO: POST notification to inbox of webpage (ldp:inbox in RDFa)
-          notifyInbox(inbox_location, url);
-      }).catch(function(err) {
-          // do something with the error
-          console.log(err);
-      });
-    });
+    saveAnnotation(self, false);
   }
 });
 
@@ -628,105 +540,7 @@ var CommentButton = MediumEditor.extensions.form.extend({
             // Clicking Save -> create the anchor
             event.preventDefault();
             var self = this;
-
-            // saveAnnotation(self, true);
-
-
-            this.base.restoreSelection();
-            var range = MediumEditor.selection.getSelectionRange(this.document);
-            var selectedParentElement = this.base.getSelectedParentElement();
-            console.log('getSelectedParentElement:');
-            console.log(selectedParentElement);
-
-            // Determine selection and context
-            this.base.selectedDocument = this.document;
-            this.base.selection = MediumEditor.selection.getSelectionHtml(this.base.selectedDocument);
-
-            var exact = this.base.selection;
-            var selectionState = MediumEditor.selection.exportSelection(selectedParentElement, this.document);
-            var start = selectionState.start;
-            var end = selectionState.end;
-            var prefixStart = Math.max(0, start - contextLength);
-            var prefix = selectedParentElement.textContent.substr(prefixStart, start - prefixStart);
-            prefix = htmlEntities(prefix);
-
-            var suffixEnd = Math.min(selectedParentElement.textContent.length, end + contextLength);
-            console.log('sE ' + suffixEnd);
-            var suffix = selectedParentElement.textContent.substr(end, suffixEnd - end);
-            console.log('-' + suffix + '-');
-            suffix = htmlEntities(suffix);
-
-            login().then(function(profile) {
-              console.log("User logged in: " + profile.name);
-              let annotationService = profile.find(vocab.oa('annotationService'));
-              save_location = annotationService || save_location;
-              // Determine listing location -- Note: In reality, this is the server's annotationService!
-              listing_location = profile.storage ? profile.storage + '/listing.ttl' : listing_location;
-
-              // Create triples with solid
-              var annotation = {
-                source: rdf.sym(window.location.href.split('#')[0]),
-                author: rdf.sym(profile.webId),
-                title: rdf.lit((profile.name || "Unknown user") + " created an annotation", 'en'),
-                date: rdf.lit(new Date().toUTCString()),
-                exact: rdf.lit(exact, 'en'), // TODO: Language is not important here? Or is it 'required' for good RDF
-                prefix: rdf.lit(prefix, 'en'),
-                suffix: rdf.lit(suffix, 'en'),
-                comment_text: rdf.lit(self.getInput().value.trim(), 'en')
-              };
-
-              var slug = uuidv1();
-
-              var thisResource = rdf.sym(save_location + '/' + slug + '.ttl'); // saves url as NamedNode
-              var selector = rdf.sym(thisResource.uri + '#fragment-selector'); // TODO: Is there a more natural way of creating hash URIs
-              var text_quote_selector = rdf.sym(thisResource.uri + '#text-quote-selector');
-              var target = rdf.sym(thisResource.uri + '#target');
-
-              var graph = rdf.graph(); // create an empty graph
-
-              // Uses WebAnnotations recommended ontologies
-              graph.add(thisResource, vocab.rdf('type'), vocab.oa('Annotation'));
-              graph.add(thisResource, vocab.dct('creator'), annotation.author);
-              graph.add(thisResource, vocab.dct('created'), annotation.date);
-              graph.add(thisResource, vocab.rdfs('label'), annotation.title);
-              graph.add(thisResource, vocab.oa('motivatedBy'), vocab.oa('commenting')); //https://www.w3.org/TR/annotation-vocab/#named-individuals
-
-              graph.add(thisResource, vocab.oa('hasTarget'), target);
-              graph.add(target, vocab.rdf('type'), vocab.oa('SpecificResource'));
-              graph.add(target, vocab.oa('hasSelector'), selector);
-              graph.add(target, vocab.oa('hasSource'), annotation.source);
-
-              graph.add(selector, vocab.rdf('type'), vocab.oa('FragmentSelector'));
-              graph.add(selector, vocab.oa('refinedBy'), text_quote_selector);
-
-              graph.add(text_quote_selector, vocab.rdf('type'), vocab.oa('TextQuoteSelector'));
-              graph.add(text_quote_selector, vocab.oa('exact'), annotation.exact);
-              graph.add(text_quote_selector, vocab.oa('prefix'), annotation.prefix);
-              graph.add(text_quote_selector, vocab.oa('suffix'), annotation.suffix);
-
-              var body = rdf.sym(thisResource.uri + '#body'); // TODO: Extend for multiple bodies
-              graph.add(thisResource, vocab.oa('hasBody'), body);
-              graph.add(body, vocab.rdf('type'), vocab.oa('TextualBody'));
-              graph.add(body, vocab.rdf('value'), annotation.comment_text);
-
-              var data = new rdf.Serializer(graph).toN3(graph); // create Notation3 serialization
-              solid.web.post(save_location, data, slug).then(function(meta) {
-                  var url = meta.url;
-                  console.log("Comment was saved at " + url);
-                  // TODO: POST notification to inbox of webpage (ldp:inbox in RDFa)
-                  notifyInbox(inbox_location, url);
-              }).catch(function(err) {
-                  // do something with the error
-                  console.log(err);
-              });
-
-              let classApplier = getCommentClassApplier(self.getInput().value.trim());
-
-              classApplier.toggleSelection(); // toggle highlight
-              self.base.checkContentChanged();
-
-              self.doFormSave();
-            });
+            saveAnnotation(self, true);
         },
 
         handleCloseClick: function (event) {
