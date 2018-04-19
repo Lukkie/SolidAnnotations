@@ -140,78 +140,6 @@ highlightClassApplier = rangyClassApplier.createClassApplier('highlight', {
   }
 });
 
-// Function is used in handleSaveClick and handleClick for highlights and comments that need to be stored on the SPARQL server
-function saveAnnotationSPARQL(self, isComment) {
-  if (isComment) self.base.restoreSelection();
-  var range = MediumEditor.selection.getSelectionRange(self.document);
-  var selectedParentElement = self.base.getSelectedParentElement();
-  console.log('getSelectedParentElement:');
-  console.log(selectedParentElement);
-
-  // Determine selection and context
-  self.base.selectedDocument = self.document;
-  self.base.selection = MediumEditor.selection.getSelectionHtml(self.base.selectedDocument);
-
-  var exact = self.base.selection;
-  var selectionState = MediumEditor.selection.exportSelection(selectedParentElement, self.document);
-  var start = selectionState.start;
-  var end = selectionState.end;
-  var prefixStart = Math.max(0, start - contextLength);
-  var prefix = selectedParentElement.textContent.substr(prefixStart, start - prefixStart);
-  prefix = htmlEntities(prefix);
-
-  var suffixEnd = Math.min(selectedParentElement.textContent.length, end + contextLength);
-  console.log('sE ' + suffixEnd);
-  var suffix = selectedParentElement.textContent.substr(end, suffixEnd - end);
-  console.log('-' + suffix + '-');
-  suffix = htmlEntities(suffix);
-
-
-
-  // assume annotation service is following endpoint (TODO: Change so user can choose endpoint)
-  let annotationService = 'https://vanhoucke.me/sparql-2';
-
-  // Listing here only includes one link, so will simplify the program for now
-  // (real-life implementations need to collect a list which contains these links)
-  let listing_location = 'https://vanhoucke.me/sparql-2/annotations/website?url=http://www.example.org/blog/1.html'
-
-  // information to be collected from GUI
-  let title = "Lukas Vanhoucke created an annotation.";
-  let creator = "https://lukas.vanhoucke.me/profile/card#me";
-  let source = window.location.href.split('#')[0];
-
-
-  let annotation = {
-    creator: creator,
-    title: title,
-    source: source,
-    exact: exact,
-    prefix: prefix,
-    suffix: suffix
-  }
-
-  if (isComment) annotation.body = self.getInput().value.trim();
-
-  request.post(annotationService)
-    .send(annotation)
-    .then(function(res) {
-
-      var url = JSON.parse(res.text).url;
-      console.log("Annotation was saved at " + url);
-
-      // TODO: POST notification to inbox of webpage (ldp:inbox in RDFa)
-      // This step is skipped for now. In future, it should announce the endpoint to collect annotations to the inbox.
-      // notifyInbox(inbox_location, url);
-
-      let classApplier = isComment ? getCommentClassApplier(self.getInput().value.trim())
-      : highlightClassApplier;
-      classApplier.toggleSelection(); // toggle highlight
-
-    }).catch(function(err) {
-      // do something with the error
-      console.log(err);
-    });
-}
 
 // Function is used in handleSaveClick and handleClick for highlights and comments
 function saveAnnotation(self, isComment) {
@@ -232,12 +160,14 @@ function saveAnnotation(self, isComment) {
   var prefixStart = Math.max(0, start - contextLength);
   var prefix = selectedParentElement.textContent.substr(prefixStart, start - prefixStart);
   prefix = htmlEntities(prefix);
+  // prefix = prefix.trimLeft();
 
   var suffixEnd = Math.min(selectedParentElement.textContent.length, end + contextLength);
   console.log('sE ' + suffixEnd);
   var suffix = selectedParentElement.textContent.substr(end, suffixEnd - end);
   console.log('-' + suffix + '-');
   suffix = htmlEntities(suffix);
+  // suffix = suffix.trimRight();
 
   login().then(function(profile) {
     console.log("User logged in: " + profile.name);
@@ -543,26 +473,6 @@ var CommentButton = MediumEditor.extensions.form.extend({
         }
 });
 
-// Following button highlights text and sends it to the users save location LDP server
-var SPARQLHighlighterButton = MediumEditor.extensions.button.extend({
-  name: 'sparqlhighlighter',
-
-  tagNames: ['mark'], // nodeName which indicates the button should be 'active' when isAlreadyApplied() is called
-  contentDefault: '<b>Highlight</b>', // default innerHTML of the button
-  contentFA: '<i class="fa fa-thumb-tack" aria-hidden="true"></i>', // innerHTML of button when 'fontawesome' is being used
-  aria: 'Highlight using SPARQL server', // used as both aria-label and title attributes
-  action: 'sparqlhighlight', // used as the data-action attribute of the button
-
-  init: function () {
-    MediumEditor.extensions.button.prototype.init.call(this);
-  },
-
-  handleClick: function (event) {
-    var self = this;
-    saveAnnotationSPARQL(self, false);
-  }
-});
-
 window.editor = new MediumEditor(document.querySelectorAll(selector), {
   // TODO: Editor is not centered because of the way Open Webslides is programmed
   // (Try zooming in and out, slide stays same size, but position of editor changes)
@@ -573,11 +483,10 @@ window.editor = new MediumEditor(document.querySelectorAll(selector), {
   anchorPreview: false,
   extensions: {
     'highlighter': new HighlighterButton(),
-    'comment': new CommentButton(),
-    'sparqlhighlighter': new SPARQLHighlighterButton()
+    'comment': new CommentButton()
   },
   toolbar: {
-      buttons: ['highlighter', 'comment', 'sparqlhighlighter'],
+      buttons: ['highlighter', 'comment'],
       allowMultiParagraphSelection: false
   }
 });
@@ -594,7 +503,6 @@ floatingLoadButton.onmouseout = function() {
   floatingLoadButton.innerHTML = loadIcon;
 }
 floatingLoadButton.onclick = function() {
-  console.log("CLICKED");
   login().then(function(profile) {
     // Determine listing location -- Note: In reality, this is the server's annotationService!
     listing_location = profile.storage ? profile.storage + '/listing.ttl' : listing_location;
@@ -612,9 +520,12 @@ floatingLoadButton.onclick = function() {
                 let selector = annotation_graph.any(motivation, vocab.oa('hasSelector'), undefined);
                 let text_quote = annotation_graph.any(selector, vocab.oa('refinedBy'), undefined);
 
-                let prefix = annotation_graph.any(text_quote, vocab.oa('prefix'), undefined);
-                let exact = annotation_graph.any(text_quote, vocab.oa('exact'), undefined);
-                let suffix = annotation_graph.any(text_quote, vocab.oa('suffix'), undefined);
+                let prefix = annotation_graph.any(text_quote, vocab.oa('prefix'), undefined).value;
+                let exact = annotation_graph.any(text_quote, vocab.oa('exact'), undefined).value;
+                let suffix = annotation_graph.any(text_quote, vocab.oa('suffix'), undefined).value;
+                console.log('prefix: ' + prefix);
+                console.log('exact: ' + exact);
+                console.log('suffix: ' + suffix);
 
                 console.log(prefix.value + '] ' + exact.value + ' [' + suffix.value);
                 if (annotation_graph.any(annotation_url, vocab.oa('hasBody'), undefined)) {
@@ -622,9 +533,9 @@ floatingLoadButton.onclick = function() {
                     let comment_value = annotation_graph.any(body, vocab.rdf('value'), undefined);
 
                     let classApplier = getCommentClassApplier(comment_value);
-                    applyHighlight(prefix.value, exact.value, suffix.value, classApplier);
+                    applyHighlight(prefix, exact, suffix, classApplier);
                 } else {
-                    applyHighlight(prefix.value, exact.value, suffix.value, highlightClassApplier);
+                    applyHighlight(prefix, exact, suffix, highlightClassApplier);
                 }
             }).catch(function(err) {
                 // do something with the error

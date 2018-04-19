@@ -20,9 +20,7 @@ css_files = ["https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesom
 /** Config **/
 var selector = '.slide';
 var contextLength = 32; // Based on dokieli; The number of characters (at most) to add for context
-var save_location = 'https://lukasvanhoucke.databox.me/Public/Annotations'; // Temporary, use webIDs annotationService for this.
-var inbox_location = 'https://lukasvanhoucke.databox.me/Public/Inbox'; // Temporary -- ldp:inbox
-var listing_location = 'https://lukasvanhoucke.databox.me/Public/Listings/test'; // Temporary -- Location where annotation URLs are stored (server's annotationService)
+let listing_location_prefix = 'https://vanhoucke.me/sparql-2/annotations/website?url='
 /**/
 
 var d = document;
@@ -48,54 +46,6 @@ vocab.example = ns.base('http://www.example.com/ns#'); // TODO: Remove this by f
 
 function htmlEntities(s) {
       return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
-function notifyInbox(inbox_url, annotation_url) {
-    // TODO Should actually place a Linked Data Notification in the server's inbox.
-    // listing_location = save_location + '/listing';
-    addToExampleListing(listing_location, annotation_url);
-}
-
-function login() {
-    return solid.login() // the browser automatically provides the client key/cert for you
-      .then(webId => {
-        if (!webId) return Promise.reject(new Error("Login failed. Make sure you have a valid WebID and certificate."));
-        console.log('Current WebID: %s', webId);
-
-        // Load extended profile? At the moment: No -- Solid cannot parse text -> leads to issues
-        let options = {ignoreExtended: true};
-        return solid.getProfile(webId, options);
-    });
-}
-
-function addToExampleListing(listing_url, annotation_url) {
-  // TODO: The server should actually run this function upon receiving a notification
-  // Since this plugin does not have access to the server, this workaround is used.
-  var source_url = window.location.href.split('#')[0];
-  solid.web.get(listing_url).then(function(response) {
-    let graph = response.parsedGraph();
-    graph.add(rdf.sym(source_url), vocab.as('items'), rdf.sym(annotation_url));
-    var data = new rdf.Serializer(graph).toN3(graph);
-    // put
-    solid.web.put(listing_url, data).then(function(meta) {
-        var url = meta.url;
-        console.log("Annotations were saved at " + url);
-    }).catch(function(err) {
-        console.log(err);
-    });
-  }).catch(function(err) {
-    var graph = rdf.graph();
-    graph.add(rdf.sym(source_url), vocab.as('items'), rdf.sym(annotation_url));
-    var data = new rdf.Serializer(graph).toN3(graph);
-    // post
-    let location = listing_location.split('/').slice(0, -1).join('/');
-    solid.web.post(location, data, 'listing').then(function(meta) {
-        var url = meta.url;
-        console.log("Annotations were saved at " + url);
-    }).catch(function(err) {
-        console.log(err);
-    });
-  });
 }
 
 function applyHighlight(prefix, exact, suffix, classApplier) {
@@ -141,12 +91,10 @@ highlightClassApplier = rangyClassApplier.createClassApplier('highlight', {
 });
 
 // Function is used in handleSaveClick and handleClick for highlights and comments that need to be stored on the SPARQL server
-function saveAnnotationSPARQL(self, isComment) {
+function saveAnnotation(self, isComment) {
   if (isComment) self.base.restoreSelection();
   var range = MediumEditor.selection.getSelectionRange(self.document);
   var selectedParentElement = self.base.getSelectedParentElement();
-  console.log('getSelectedParentElement:');
-  console.log(selectedParentElement);
 
   // Determine selection and context
   self.base.selectedDocument = self.document;
@@ -159,12 +107,12 @@ function saveAnnotationSPARQL(self, isComment) {
   var prefixStart = Math.max(0, start - contextLength);
   var prefix = selectedParentElement.textContent.substr(prefixStart, start - prefixStart);
   prefix = htmlEntities(prefix);
+  // prefix = prefix.trim();
 
   var suffixEnd = Math.min(selectedParentElement.textContent.length, end + contextLength);
-  console.log('sE ' + suffixEnd);
   var suffix = selectedParentElement.textContent.substr(end, suffixEnd - end);
-  console.log('-' + suffix + '-');
   suffix = htmlEntities(suffix);
+  // suffix = suffix.trim();
 
 
 
@@ -173,6 +121,7 @@ function saveAnnotationSPARQL(self, isComment) {
 
   // Listing here only includes one link, so will simplify the program for now
   // (real-life implementations need to collect a list which contains these links)
+  // (not used for now)
   let listing_location = 'https://vanhoucke.me/sparql-2/annotations/website?url=http://www.example.org/blog/1.html'
 
   // information to be collected from GUI
@@ -211,110 +160,13 @@ function saveAnnotationSPARQL(self, isComment) {
       // do something with the error
       console.log(err);
     });
+
+  self.base.checkContentChanged();
+  if (isComment) self.doFormSave();
+
 }
 
-// Function is used in handleSaveClick and handleClick for highlights and comments
-function saveAnnotation(self, isComment) {
-  if (isComment) self.base.restoreSelection();
-  var range = MediumEditor.selection.getSelectionRange(self.document);
-  var selectedParentElement = self.base.getSelectedParentElement();
-  console.log('getSelectedParentElement:');
-  console.log(selectedParentElement);
 
-  // Determine selection and context
-  self.base.selectedDocument = self.document;
-  self.base.selection = MediumEditor.selection.getSelectionHtml(self.base.selectedDocument);
-
-  var exact = self.base.selection;
-  var selectionState = MediumEditor.selection.exportSelection(selectedParentElement, self.document);
-  var start = selectionState.start;
-  var end = selectionState.end;
-  var prefixStart = Math.max(0, start - contextLength);
-  var prefix = selectedParentElement.textContent.substr(prefixStart, start - prefixStart);
-  prefix = htmlEntities(prefix);
-
-  var suffixEnd = Math.min(selectedParentElement.textContent.length, end + contextLength);
-  console.log('sE ' + suffixEnd);
-  var suffix = selectedParentElement.textContent.substr(end, suffixEnd - end);
-  console.log('-' + suffix + '-');
-  suffix = htmlEntities(suffix);
-
-  login().then(function(profile) {
-    console.log("User logged in: " + profile.name);
-    let annotationService = profile.find(vocab.oa('annotationService'));
-    save_location = annotationService || save_location;
-    // Determine listing location -- Note: In reality, this is the server's annotationService!
-    listing_location = profile.storage ? profile.storage + '/listing.ttl' : listing_location;
-
-    // Create triples with solid
-    var annotation = {
-      source: rdf.sym(window.location.href.split('#')[0]),
-      author: rdf.sym(profile.webId),
-      title: rdf.lit((profile.name || "Unknown user") + " created an annotation", 'en'),
-      date: rdf.lit(new Date().toUTCString()),
-      exact: rdf.lit(exact, 'en'), // Not strictly english though
-      prefix: rdf.lit(prefix, 'en'),
-      suffix: rdf.lit(suffix, 'en')
-    };
-    if (isComment) annotation.comment_text = rdf.lit(self.getInput().value.trim(), 'en');
-
-    var slug = uuidv1();
-
-    var thisResource = rdf.sym(save_location + '/' + slug + '.ttl'); // saves url as NamedNode
-    var selector = rdf.sym(thisResource.uri + '#fragment-selector'); // TODO: Is there a more natural way of creating hash URIs
-    var text_quote_selector = rdf.sym(thisResource.uri + '#text-quote-selector');
-    var target = rdf.sym(thisResource.uri + '#target');
-
-    var graph = rdf.graph(); // create an empty graph
-
-    // Uses WebAnnotations recommended ontologies
-    graph.add(thisResource, vocab.rdf('type'), vocab.oa('Annotation'));
-    graph.add(thisResource, vocab.dct('creator'), annotation.author);
-    graph.add(thisResource, vocab.dct('created'), annotation.date);
-    graph.add(thisResource, vocab.rdfs('label'), annotation.title);
-    graph.add(thisResource, vocab.oa('motivatedBy'), (isComment ? vocab.oa('commenting') : vocab.oa('tagging'))); //https://www.w3.org/TR/annotation-vocab/#named-individuals
-
-    graph.add(thisResource, vocab.oa('hasTarget'), target);
-    graph.add(target, vocab.rdf('type'), vocab.oa('SpecificResource'));
-    graph.add(target, vocab.oa('hasSelector'), selector);
-    graph.add(target, vocab.oa('hasSource'), annotation.source);
-
-    graph.add(selector, vocab.rdf('type'), vocab.oa('FragmentSelector'));
-    graph.add(selector, vocab.oa('refinedBy'), text_quote_selector);
-
-    graph.add(text_quote_selector, vocab.rdf('type'), vocab.oa('TextQuoteSelector'));
-    graph.add(text_quote_selector, vocab.oa('exact'), annotation.exact);
-    graph.add(text_quote_selector, vocab.oa('prefix'), annotation.prefix);
-    graph.add(text_quote_selector, vocab.oa('suffix'), annotation.suffix);
-
-    if (isComment) {
-      var body = rdf.sym(thisResource.uri + '#body'); // TODO: Extend for multiple bodies
-      graph.add(thisResource, vocab.oa('hasBody'), body);
-      graph.add(body, vocab.rdf('type'), vocab.oa('TextualBody'));
-      graph.add(body, vocab.rdf('value'), annotation.comment_text);
-    }
-
-    var data = new rdf.Serializer(graph).toN3(graph); // create Notation3 serialization
-    solid.web.post(save_location, data, slug).then(function(meta) {
-        var url = meta.url;
-        console.log("Annotation was saved at " + url);
-
-        // TODO: POST notification to inbox of webpage (ldp:inbox in RDFa)
-        notifyInbox(inbox_location, url);
-
-        let classApplier = isComment ? getCommentClassApplier(self.getInput().value.trim())
-                                     : highlightClassApplier;
-        classApplier.toggleSelection(); // toggle highlight
-
-    }).catch(function(err) {
-        // do something with the error
-        console.log(err);
-    });
-
-    self.base.checkContentChanged();
-    if (isComment) self.doFormSave();
-  });
-}
 
 
 // Following button highlights text and sends it to the users save location LDP server
@@ -543,26 +395,6 @@ var CommentButton = MediumEditor.extensions.form.extend({
         }
 });
 
-// Following button highlights text and sends it to the users save location LDP server
-var SPARQLHighlighterButton = MediumEditor.extensions.button.extend({
-  name: 'sparqlhighlighter',
-
-  tagNames: ['mark'], // nodeName which indicates the button should be 'active' when isAlreadyApplied() is called
-  contentDefault: '<b>Highlight</b>', // default innerHTML of the button
-  contentFA: '<i class="fa fa-thumb-tack" aria-hidden="true"></i>', // innerHTML of button when 'fontawesome' is being used
-  aria: 'Highlight using SPARQL server', // used as both aria-label and title attributes
-  action: 'sparqlhighlight', // used as the data-action attribute of the button
-
-  init: function () {
-    MediumEditor.extensions.button.prototype.init.call(this);
-  },
-
-  handleClick: function (event) {
-    var self = this;
-    saveAnnotationSPARQL(self, false);
-  }
-});
-
 window.editor = new MediumEditor(document.querySelectorAll(selector), {
   // TODO: Editor is not centered because of the way Open Webslides is programmed
   // (Try zooming in and out, slide stays same size, but position of editor changes)
@@ -574,10 +406,9 @@ window.editor = new MediumEditor(document.querySelectorAll(selector), {
   extensions: {
     'highlighter': new HighlighterButton(),
     'comment': new CommentButton(),
-    'sparqlhighlighter': new SPARQLHighlighterButton()
   },
   toolbar: {
-      buttons: ['highlighter', 'comment', 'sparqlhighlighter'],
+      buttons: ['highlighter', 'comment'],
       allowMultiParagraphSelection: false
   }
 });
@@ -594,50 +425,32 @@ floatingLoadButton.onmouseout = function() {
   floatingLoadButton.innerHTML = loadIcon;
 }
 floatingLoadButton.onclick = function() {
-  console.log("CLICKED");
-  login().then(function(profile) {
-    // Determine listing location -- Note: In reality, this is the server's annotationService!
-    listing_location = profile.storage ? profile.storage + '/listing.ttl' : listing_location;
-    solid.web.get(listing_location).then(function(response) {
-        graph = response.parsedGraph();  // graph is part of rdflib, see link at top of page.
+  let endpoint = listing_location_prefix + window.location.href.split('#')[0];
+  request.get(endpoint)
+    .then(function(res) {
+      var body = JSON.parse(res.text);
+      body.results.bindings.forEach(function(binding) {
+        console.log(binding.date.value);
 
-        current_url = window.location.href.split('#')[0];
-        graph.each(rdf.sym(current_url), vocab.as('items'), undefined).forEach(function(annotation_url) { // TODO: Change predicate
-            console.log("Found matching annotation: " + annotation_url.value);
-            // Do something with annotation
-            // e.g. collect prefix, exact and suffix
-            solid.web.get(annotation_url.value).then(function(response) {
-                let annotation_graph = response.parsedGraph();
-                let motivation = annotation_graph.any(annotation_url, vocab.oa('hasTarget'), undefined);
-                let selector = annotation_graph.any(motivation, vocab.oa('hasSelector'), undefined);
-                let text_quote = annotation_graph.any(selector, vocab.oa('refinedBy'), undefined);
+        let prefix = binding.prefix.value;
+        let exact = binding.exact.value;
+        let suffix = binding.suffix.value;
+        console.log('prefix: ' + prefix);
+        console.log('exact: ' + exact);
+        console.log('suffix: ' + suffix);
 
-                let prefix = annotation_graph.any(text_quote, vocab.oa('prefix'), undefined);
-                let exact = annotation_graph.any(text_quote, vocab.oa('exact'), undefined);
-                let suffix = annotation_graph.any(text_quote, vocab.oa('suffix'), undefined);
-
-                console.log(prefix.value + '] ' + exact.value + ' [' + suffix.value);
-                if (annotation_graph.any(annotation_url, vocab.oa('hasBody'), undefined)) {
-                    let body = annotation_graph.any(annotation_url, vocab.oa('hasBody'), undefined);
-                    let comment_value = annotation_graph.any(body, vocab.rdf('value'), undefined);
-
-                    let classApplier = getCommentClassApplier(comment_value);
-                    applyHighlight(prefix.value, exact.value, suffix.value, classApplier);
-                } else {
-                    applyHighlight(prefix.value, exact.value, suffix.value, highlightClassApplier);
-                }
-            }).catch(function(err) {
-                // do something with the error
-                console.log("Received error: " + err.stack);
-            });
-        });
-    })
-    .catch(function(err) {
-        // do something with the error
-        console.log("Received error: " + err);
-    });
-  }).catch(function(err) {
+        if (binding.text) {
+          // comment
+          let comment_value = binding.text.value;
+          let classApplier = getCommentClassApplier(comment_value);
+          applyHighlight(prefix, exact, suffix, classApplier);
+        } else {
+          // highlight
+          applyHighlight(prefix, exact, suffix, highlightClassApplier);
+        }
+      });
+    }).catch(function(err) {
       // do something with the error
-      console.log("Received error: " + err);
-  });
+      console.log(err);
+    });
 }

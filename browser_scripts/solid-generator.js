@@ -16,7 +16,7 @@ const hrtime = require('browser-process-hrtime');
 var save_location = null; // Temporary
 // const sparql_endpoint = 'https://vanhoucke.me/sparql';
 var sparql_endpoint = window.location.protocol + '//' + window.location.host + '/sparql';
-var sparql_onegraph_endpoint = window.location.protocol + '//' + window.location.host + '/sparql-2';
+var sparql_onegraph_endpoint = window.location.protocol + '//' + window.location.host + '/sparql-2/loadfromgraph';
 
 var vocab = solid.vocab;
 vocab.oa = ns.base('http://www.w3.org/ns/oa#');
