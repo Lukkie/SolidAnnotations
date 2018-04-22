@@ -15,8 +15,7 @@ const hrtime = require('browser-process-hrtime');
 // var save_location = 'https://lukas.vanhoucke.me/inbox'; // Temporary
 var save_location = null; // Temporary
 // const sparql_endpoint = 'https://vanhoucke.me/sparql';
-var sparql_endpoint = window.location.protocol + '//' + window.location.host + '/sparql';
-var sparql_onegraph_endpoint = window.location.protocol + '//' + window.location.host + '/sparql-2';
+var sparql_onegraph_endpoint = window.location.protocol + '//' + window.location.host + '/sparql-2/annotations';
 
 var vocab = solid.vocab;
 vocab.oa = ns.base('http://www.w3.org/ns/oa#');
@@ -72,47 +71,43 @@ function loadSolidAnnotations(annotations) {
 
 function loadSPARQLAnnotations(annotations) {
   return new Promise(function(resolve, reject) {
+    let annotations = [];
     let annotations_timer = hrtime();
 
-    let counter = 0;
-    for (let i = 0; i < annotations.length; i++) {
-      let annotation_split = annotations[i].split('/');
-      let annotation_url = sparql_endpoint + '/' + annotation_split[annotation_split.length - 2]  +
-      '/' + annotation_split[annotation_split.length - 1];
+    request
+      .get(sparql_onegraph_endpoint)
+      .end((err, res) => {
+        if (!err) {
+          let bindings = JSON.parse(res.text).results.bindings;
 
-      let individual_annotation_timer = hrtime();
-      request
-        .get(annotation_url)
-        .end((err, res) => {
-          if (!err) {
-            let elapsedS = hrtime(individual_annotation_timer)[0];
-            let elapsedMs = hrtime(individual_annotation_timer)[1] / 1e6;
-            let elapsed = 1000*elapsedS + elapsedMs;
-            counter++;
-            console.log("Collected annotation " + i + " at " + annotation_url +" collected (" + elapsed + " ms)");
-            // This is just collection, no querying etc.
-            if (counter == annotations.length) {
-              elapsedS = hrtime(annotations_timer)[0];
-              elapsedMs = hrtime(annotations_timer)[1] / 1e6;
-              elapsed = 1000*elapsedS + elapsedMs;
-              console.log("-- [SPARQL] All annotations collected --");
-              let average_time = elapsed / annotations.length;
-              console.log("-- [SPARQL] Average collection time for " + annotations.length +
-                          " annotations is " + average_time + " ms --");
-              resolve();
-            }
-          } else reject(err);
-        });
+          let elapsedS = hrtime(annotations_timer)[0];
+          let elapsedMs = hrtime(annotations_timer)[1] / 1e6;
+          let elapsed = 1000*elapsedS + elapsedMs;
+          console.log("-- [SPARQL] All annotations collected --");
+          let average_time = elapsed / bindings.length;
+          console.log("-- [SPARQL] Average collection time for " + bindings.length +
+                      " annotations is " + average_time + " ms --");
+          resolve(bindings);
+        }
+        else reject(err);
+      });
 
-    }
-  });
+    });
 }
 
-function displayAnnotations(annotations) {
-  // TODO
+function displayAnnotationsSolid(annotations) {
   annotations.forEach(function(annotation) {
-    console.log(annotation);
+    let annotation_uri = annotation.any(undefined, vocab.rdf('type'), vocab.oa('Annotation')).value;
+    let source = annotation.statementsMatching(undefined, vocab.oa('hasSource'), undefined)[0].object.value;
+
+    console.log(annotation_uri + ": " + source);
   })
+}
+
+function displayAnnotationsSPARQL(annotations) {
+  annotations.forEach(function(binding) {
+    console.log(binding.annotation.value + ": " + binding.source.value);
+  });
 }
 
 
@@ -121,7 +116,7 @@ var loadButtonSolid = document.getElementById("loadButtonSolid");
 loadButtonSolid.onclick = function() {
   loadSolidAnnotations()
     .then(function(annotations) {
-      displayAnnotations(annotations);
+      displayAnnotationsSolid(annotations);
     }).catch(function(err) {
       console.log(err);
     });
@@ -131,7 +126,7 @@ var loadButtonSPARQL = document.getElementById("loadButtonSPARQL");
 loadButtonSPARQL.onclick = function() {
   loadSPARQLAnnotations()
     .then(function(annotations) {
-      displayAnnotations(annotations);
+      displayAnnotationsSPARQL(annotations);
     }).catch(function(err) {
       console.log(err);
     });
