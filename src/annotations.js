@@ -20,9 +20,9 @@ css_files = ["https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesom
 /** Config **/
 var selector = '.slide';
 var contextLength = 32; // Based on dokieli; The number of characters (at most) to add for context
-var save_location = 'https://lukasvanhoucke.databox.me/Public/Annotations'; // Temporary, use webIDs annotationService for this.
-var inbox_location = 'https://lukasvanhoucke.databox.me/Public/Inbox'; // Temporary -- ldp:inbox
-var listing_location = 'https://lukasvanhoucke.databox.me/Public/Listings/test'; // Temporary -- Location where annotation URLs are stored (server's annotationService)
+var save_location = 'https://lukas.vanhoucke.me/public/annotations'; // Temporary, use webIDs annotationService for this.
+var inbox_location = 'https://lukas.vanhoucke.me/inbox'; // Temporary -- ldp:inbox
+var listing_location = 'https://lukas.vanhoucke.me/public/listing.ttl'; // Temporary -- Location where annotation URLs are stored (server's annotationService)
 /**/
 
 var d = document;
@@ -50,10 +50,18 @@ function htmlEntities(s) {
       return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function notifyInbox(inbox_url, annotation_url) {
+function notifyInbox(inbox, annotation_url, source) {
     // TODO Should actually place a Linked Data Notification in the server's inbox.
     // listing_location = save_location + '/listing';
-    addToExampleListing(listing_location, annotation_url);
+
+    let notificationGraph = rdf.graph();
+    notificationGraph.add(source, vocab.as("Announce"), annotation_url);
+    let notificationData = new rdf.Serializer(notificationGraph).toN3(notificationGraph);
+    solid.web.post(inbox, notificationData).then(function(meta) {
+      console.log("Notification sent.")
+    })
+
+    // addToExampleListing(listing_location, annotation_url);
 }
 
 function login() {
@@ -230,7 +238,7 @@ function saveAnnotation(self, isComment) {
         console.log("Annotation was saved at " + url);
 
         // TODO: POST notification to inbox of webpage (ldp:inbox in RDFa)
-        notifyInbox(inbox_location, url);
+        notifyInbox(inbox_location, rdf.sym(url), annotation.source);
 
         let classApplier = isComment ? getCommentClassApplier(self.getInput().value.trim())
                                      : highlightClassApplier;
