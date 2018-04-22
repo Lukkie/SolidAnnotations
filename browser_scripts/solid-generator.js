@@ -16,7 +16,7 @@ const hrtime = require('browser-process-hrtime');
 var save_location = null; // Temporary
 // const sparql_endpoint = 'https://vanhoucke.me/sparql';
 var sparql_endpoint = window.location.protocol + '//' + window.location.host + '/sparql';
-var sparql_onegraph_endpoint = window.location.protocol + '//' + window.location.host + '/sparql-2/loadfromgraph';
+var sparql_onegraph_endpoint = window.location.protocol + '//' + window.location.host + '/sparql-2';
 
 var vocab = solid.vocab;
 vocab.oa = ns.base('http://www.w3.org/ns/oa#');
@@ -202,7 +202,8 @@ const content = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
          let elapsedMs = hrtime(individual_annotation_timer)[1] / 1e6;
          let elapsed = 1000*elapsedS + elapsedMs;
          var url = meta.url;
-         annotations.push(url);
+         annotation.url = url;
+         annotations.push(annotation);
          console.log("Annotation " + annotations.length + " created at " + url + " (" + elapsed + " ms)");
          // showAnnotation(meta.url, user, website + '#' + fragment)
          showAnnotation(meta.url, user, website)
@@ -225,15 +226,16 @@ const content = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
    });
  }
 
-function generateSPARQLAnnotations(annotations, isOneGraph) {
-  let endpoint = isOneGraph ? sparql_onegraph_endpoint : sparql_endpoint;
+// Loads annotation from Solid graph!
+function generateSPARQLAnnotations(annotations) {
+  let endpoint = sparql_endpoint;
   return new Promise(function(resolve, reject) {
     let annotations_timer = hrtime();
 
     let number_of_annotations = annotations.length;
     let counter = 0;
     for (let i = 0; i < number_of_annotations; i++) {
-      let annotation = annotations[i];
+      let annotation = annotations[i].url;
       let individual_annotation_timer = hrtime();
       request.post(endpoint)
         .send({
@@ -244,14 +246,11 @@ function generateSPARQLAnnotations(annotations, isOneGraph) {
           let elapsedMs = hrtime(individual_annotation_timer)[1] / 1e6;
           let elapsed = 1000*elapsedS + elapsedMs;
           let annotation_split = annotation.split('/');
-          if (isOneGraph) {
-            console.log("(" + i + ") Single graph -- Succesfully added data of " + annotation + ' to the graph (' + elapsed + " ms)");
-          }
-          else {
-            console.log("(" + i + ") Multiple graphs -- Succesfully created graph of " + annotation +" ( " +
-              endpoint + '/' + annotation_split[annotation_split.length - 2]  +
-              '/' + annotation_split[annotation_split.length - 1] + ' ) (' + elapsed + " ms)");
-          }
+
+          console.log("(" + i + ") Multiple graphs -- Succesfully created graph of " + annotation +" ( " +
+            endpoint + '/' + annotation_split[annotation_split.length - 2]  +
+            '/' + annotation_split[annotation_split.length - 1] + ' ) (' + elapsed + " ms)");
+
           counter++;
           if (counter == number_of_annotations) {
             elapsedS = hrtime(annotations_timer)[0];
@@ -269,7 +268,61 @@ function generateSPARQLAnnotations(annotations, isOneGraph) {
           reject();
         })
     }
+  });
+}
 
+// Generates an annotation in the single graph SPARQL endpoint
+function generateSPARQLAnnotationsOneGraph(annotations) {
+  let endpoint = sparql_onegraph_endpoint;
+  return new Promise(function(resolve, reject) {
+    let annotations_timer = hrtime();
+
+    let number_of_annotations = annotations.length;
+    let counter = 0;
+    for (let i = 0; i < number_of_annotations; i++) {
+      let annotation = annotations[i];
+
+      // transform RDFlib-style annotation into simple dictionary object
+      annotation = {
+        creator: annotation.author.value,
+        title: annotation.title.value,
+        source: annotation.source.value,
+        exact: annotation.exact.value,
+        prefix: annotation.prefix.value,
+        suffix: annotation.suffix.value,
+        body: annotation.comment_text.value
+      }
+
+      let individual_annotation_timer = hrtime();
+
+      request.post(endpoint)
+        .send(annotation)
+        .then(function(res) {
+          let elapsedS = hrtime(individual_annotation_timer)[0];
+          let elapsedMs = hrtime(individual_annotation_timer)[1] / 1e6;
+          let elapsed = 1000*elapsedS + elapsedMs;
+
+          var url = JSON.parse(res.text).url;
+          console.log("(" + i + ") SPARQL single graph -- Succesfully stored annotation with identifier " + url + " to the graph (" + elapsed + " ms)");
+
+          counter++;
+          if (counter == number_of_annotations) {
+            elapsedS = hrtime(annotations_timer)[0];
+            elapsedMs = hrtime(annotations_timer)[1] / 1e6;
+            elapsed = 1000*elapsedS + elapsedMs;
+            console.log("-- [SPARQL] Annotations created in " + elapsed + " ms --");
+            let average_time = elapsed / number_of_annotations;
+            console.log("-- [SPARQL] Average storage time for " + number_of_annotations +
+                        " annotations is " + average_time + " ms --");
+            resolve();
+          }
+
+        }).catch(function(err) {
+          // do something with the error
+          console.log(err);
+          reject(err);
+        });
+    }
   });
 }
 
@@ -299,10 +352,10 @@ function generate(number_of_annotations, number_of_users, number_of_websites) {
         console.log("Websites created");
         // return generateAnnotations(number_of_annotations, users, websites, fragments, annotations);
         return generateAnnotations(number_of_annotations, users, websites, annotations);
-      }).then(function() {
+      })/*.then(function() {
         return generateSPARQLAnnotations(annotations);
-      }).then(function() {
-        return generateSPARQLAnnotations(annotations, true); // Using one graph
+      })*/.then(function() {
+        return generateSPARQLAnnotationsOneGraph(annotations); // Using one graph
       }).then(function() {
         console.log("Annotations copied to SPARQL server");
         resolve(annotations);
@@ -547,8 +600,7 @@ initializeButton.onclick = function() {
   initialize();
 }
 
-var numberOfUsersToggle = document.getElementById("NumberOfUsersCheckBox");
-numberOfUsersToggle.onclick = function() {
+function toggleNumberOfUsers(checked) {
   var usersParameterSelection = document.getElementById("usersParameterSelection");
   var usersRange = document.getElementById("usersRange");
   var usersInput = document.getElementById("usersInput");
@@ -562,3 +614,11 @@ numberOfUsersToggle.onclick = function() {
     usersInput.disabled = false;
   }
 }
+
+var numberOfUsersToggle = document.getElementById("NumberOfUsersCheckBox");
+numberOfUsersToggle.onclick = function() {
+  toggleNumberOfUsers(numberOfUsersToggle.checked);
+}
+
+numberOfUsersToggle.checked = true;
+toggleNumberOfUsers(true);
