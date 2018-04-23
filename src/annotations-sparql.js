@@ -1,12 +1,8 @@
 /******************************IMPORTS ******************************/
 // Libraries
-const solid = require('solid-client');
-const rdf = require('rdflib');
-const ns = require('rdf-ns')(rdf);
 const MediumEditor = require('medium-editor');
 const rangy = require('rangy');
 const rangyClassApplier = require('rangy/lib/rangy-classapplier');
-const uuidv1 = require('uuid/v1');
 const request = require('superagent');
 // Modules
 const util = require('./util.js');
@@ -38,11 +34,6 @@ css_files.forEach(function(url) {
 });
 
 rangy.init();
-var vocab = solid.vocab;
-vocab.oa = ns.base('http://www.w3.org/ns/oa#');
-vocab.as = ns.base('http://www.w3.org/ns/activitystreams#');
-vocab.example = ns.base('http://www.example.com/ns#'); // TODO: Remove this by finding correct terms
-
 
 function htmlEntities(s) {
       return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
