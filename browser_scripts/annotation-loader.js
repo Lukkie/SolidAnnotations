@@ -55,6 +55,8 @@ function loadSolidAnnotations(annotations) {
                 let elapsed = 1000*elapsedS + elapsedMs;
                 console.log("-- [SOLID] All annotations collected --");
                 let average_time = elapsed / number_of_annotations;
+                console.log("-- [SOLID] Total collection time for " + number_of_annotations +
+                            " annotations is " + elapsed + " ms --");
                 console.log("-- [SOLID] Average collection time for " + number_of_annotations +
                             " annotations is " + average_time + " ms --");
                 resolve(annotations);
@@ -85,6 +87,8 @@ function loadSPARQLAnnotations(annotations) {
           let elapsed = 1000*elapsedS + elapsedMs;
           console.log("-- [SPARQL] All annotations collected --");
           let average_time = elapsed / bindings.length;
+          console.log("-- [SPARQL] Total collection time for " + bindings.length +
+                      " annotations is " + elapsed + " ms --")
           console.log("-- [SPARQL] Average collection time for " + bindings.length +
                       " annotations is " + average_time + " ms --");
           resolve(bindings);
