@@ -16,15 +16,22 @@ const hrtime = require('browser-process-hrtime');
 var save_location = null; // Temporary
 // const sparql_endpoint = 'https://vanhoucke.me/sparql';
 var sparql_onegraph_endpoint = window.location.protocol + '//' + window.location.host + '/sparql-2/annotations';
+var sparql_onegraph_endpoint_filter = window.location.protocol + '//' + window.location.host + '/sparql-2/annotations/website';
+
 
 var vocab = solid.vocab;
 vocab.oa = ns.base('http://www.w3.org/ns/oa#');
 vocab.as = ns.base('http://www.w3.org/ns/activitystreams#');
 vocab.example = ns.base('http://www.example.com/ns#'); // TODO: Remove this by finding correct terms
 
+var queryTextBox = document.getElementById("querystring");
+var loadButtonSolid = document.getElementById("loadButtonSolid");
+var loadButtonSPARQL = document.getElementById("loadButtonSPARQL");
 
 // This is just collection, no querying etc.
-function loadSolidAnnotations(annotations) {
+// specificUrl is "" when all solid annotations have to be returned
+function loadSolidAnnotations(specificUrl) {
+  let url = specificUrl || "";
   return new Promise(function(resolve, reject) {
     let annotations = [];
     let counter = 0;
@@ -47,7 +54,10 @@ function loadSolidAnnotations(annotations) {
           let number_of_annotations = Object.keys(annotations_directory.resource.resources).length;
           for (let annotation in annotations_directory.resource.resources) {
             solid.web.get(annotation).then(function(annotation_response) {
-              annotations.push(annotation_response.parsedGraph());
+              let annotation_graph = annotation_response.parsedGraph();
+              if (url.length == 0 || annotation_graph.any(undefined, vocab.oa('hasSource'), rdf.sym(url))) {
+                annotations.push(annotation_response.parsedGraph());
+              }
               counter++;
               if (counter == number_of_annotations) {
                 let elapsedS = hrtime(annotations_timer)[0];
@@ -71,13 +81,20 @@ function loadSolidAnnotations(annotations) {
   });
 }
 
-function loadSPARQLAnnotations(annotations) {
+
+function loadSPARQLAnnotations() {
   return new Promise(function(resolve, reject) {
     let annotations = [];
     let annotations_timer = hrtime();
 
+    let endpoint = sparql_onegraph_endpoint;
+    if (getQueryString().length > 0) {
+      endpoint = sparql_onegraph_endpoint_filter;
+      endpoint += '?url=';
+      endpoint += getQueryString();
+    }
     request
-      .get(sparql_onegraph_endpoint)
+      .get(endpoint)
       .end((err, res) => {
         if (!err) {
           let bindings = JSON.parse(res.text).results.bindings;
@@ -114,11 +131,13 @@ function displayAnnotationsSPARQL(annotations) {
   });
 }
 
+function getQueryString() {
+  return queryTextBox.value.trim();
+}
 
 
-var loadButtonSolid = document.getElementById("loadButtonSolid");
 loadButtonSolid.onclick = function() {
-  loadSolidAnnotations()
+  loadSolidAnnotations(getQueryString())
     .then(function(annotations) {
       displayAnnotationsSolid(annotations);
     }).catch(function(err) {
@@ -126,7 +145,6 @@ loadButtonSolid.onclick = function() {
     });
 }
 
-var loadButtonSPARQL = document.getElementById("loadButtonSPARQL");
 loadButtonSPARQL.onclick = function() {
   loadSPARQLAnnotations()
     .then(function(annotations) {
