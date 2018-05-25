@@ -553,7 +553,8 @@ floatingLoadButton.onclick = function() {
     })
     .catch(function(err) {
         // do something with the error
-        console.log("Received error: " + err);
+        if (err.code == 404) console.log("Annotation listing not found");
+        else console.log("Received error: " + err);
     });
   }).catch(function(err) {
       // do something with the error

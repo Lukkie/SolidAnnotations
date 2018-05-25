@@ -155,7 +155,6 @@ const content = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
          suffix: rdf.lit('text after highlighted text', 'en'),
          comment_text: rdf.lit(comment, 'en')
        }
-
        let slug = uuidv1();
        let save_location = user.directory;
 
@@ -350,14 +349,17 @@ function generate(number_of_annotations, number_of_users, number_of_websites) {
         return generateWebsites(number_of_websites, websites);
       }).then(function() {
         console.log("Websites created");
-        // return generateAnnotations(number_of_annotations, users, websites, fragments, annotations);
         return generateAnnotations(number_of_annotations, users, websites, annotations);
-      })/*.then(function() {
-        return generateSPARQLAnnotations(annotations);
-      })*/.then(function() {
-        return generateSPARQLAnnotationsOneGraph(annotations); // Using one graph
       }).then(function() {
-        console.log("Annotations copied to SPARQL server");
+        if (multiSparqlToggle.checked)
+          return generateSPARQLAnnotations(annotations);
+        else return Promise.resolve();
+      }).then(function() {
+        if (oneSparqlToggle.checked) {
+          return generateSPARQLAnnotationsOneGraph(annotations); // Using one graph
+        }
+        else return Promise.resolve();
+      }).then(function() {
         resolve(annotations);
       }).catch(function(err) {
         console.log(err);
@@ -619,6 +621,10 @@ var numberOfUsersToggle = document.getElementById("NumberOfUsersCheckBox");
 numberOfUsersToggle.onclick = function() {
   toggleNumberOfUsers(numberOfUsersToggle.checked);
 }
-
 numberOfUsersToggle.checked = true;
 toggleNumberOfUsers(true);
+
+var oneSparqlToggle = document.getElementById("SPARQLOneGraphCheckBox");
+oneSparqlToggle.checked = true;
+var multiSparqlToggle = document.getElementById("SPARQLMultiGraphCheckBox");
+multiSparqlToggle.checked = false;
