@@ -6,9 +6,6 @@ const solid = require("solid-client"); // or require('solid') ?
 const rdf = require("rdflib");
 const ns = require("rdf-ns")(rdf);
 
-const uuidv1 = require("uuid/v1");
-const randomUserOriginal = require("random-user");
-const promiseRetry = require("promise-retry");
 const request = require("superagent");
 const hrtime = require("browser-process-hrtime");
 
@@ -27,7 +24,6 @@ var sparql_onegraph_endpoint_filter =
 var vocab = solid.vocab;
 vocab.oa = ns.base("http://www.w3.org/ns/oa#");
 vocab.as = ns.base("http://www.w3.org/ns/activitystreams#");
-vocab.example = ns.base("http://www.example.com/ns#"); // TODO: Remove this by finding correct terms
 
 var queryTextBox = document.getElementById("querystring");
 var loadButtonSolid = document.getElementById("loadButtonSolid");

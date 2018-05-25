@@ -16,7 +16,6 @@ var sparql_endpoint =
 var vocab = solid.vocab;
 vocab.oa = ns.base("http://www.w3.org/ns/oa#");
 vocab.as = ns.base("http://www.w3.org/ns/activitystreams#");
-vocab.example = ns.base("http://www.example.com/ns#"); // TODO: Remove this by finding correct terms
 
 const content =
   "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";

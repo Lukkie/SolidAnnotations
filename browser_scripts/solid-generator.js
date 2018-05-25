@@ -5,10 +5,7 @@
 const solid = require("solid-client"); // or require('solid') ?
 const rdf = require("rdflib");
 const ns = require("rdf-ns")(rdf);
-
 const uuidv1 = require("uuid/v1");
-const randomUserOriginal = require("random-user");
-const promiseRetry = require("promise-retry");
 const request = require("superagent");
 const hrtime = require("browser-process-hrtime");
 
@@ -23,35 +20,13 @@ var sparql_onegraph_endpoint =
 var vocab = solid.vocab;
 vocab.oa = ns.base("http://www.w3.org/ns/oa#");
 vocab.as = ns.base("http://www.w3.org/ns/activitystreams#");
-vocab.example = ns.base("http://www.example.com/ns#"); // TODO: Remove this by finding correct terms
 
 // const fragments = ["introduction", "chapter_one", "chapter_two", "listing_one",
 //  "listing_two", "listing_three", "conclusion", "sources", "comments", "about"];
 const content =
   "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
 
-// Adapted function to only return names that match regex /^[A-Za-z]+$/
-// function randomUser() {
-//   return promiseRetry(function (retry, number) {
-//       //console.log('attempt number', number);
-//       return new Promise(function(resolve, reject) {
-//         randomUserOriginal('simple')
-//           .then( (data) => {
-//             if (/^[A-Za-z]+$/.test(data.firstName) && /^[A-Za-z]+$/.test(data.lastName)) {
-//               resolve(data);
-//             } else {
-//               //console.log("REJECTED: " + data.firstName + " " + data.lastName);
-//               reject(data);
-//             }
-//           }).catch((err) => {
-//             console.log(err);
-//             reject(err);
-//           });
-//       }).catch(retry);
-//   });
-// }
-
-// dummy function for localhost testing, since it does not allow cross-origin requests.
+// Generate a random user
 function randomUser() {
   return new Promise(function(resolve, reject) {
     let data = {};

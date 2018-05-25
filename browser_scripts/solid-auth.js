@@ -6,13 +6,11 @@ const ns = require("rdf-ns")(rdf);
 
 const uuidv1 = require("uuid/v1");
 
-// var inbox_location = 'https://lukas.vanhoucke.me/inbox'; // Temporary
 var inbox_location = null; // Temporary
 
 var vocab = solid.vocab;
 vocab.oa = ns.base("http://www.w3.org/ns/oa#");
 vocab.as = ns.base("http://www.w3.org/ns/activitystreams#");
-vocab.example = ns.base("http://www.example.com/ns#"); // TODO: Remove this by finding correct terms
 
 solid
   .login() // the browser automatically provides the client key/cert for you
