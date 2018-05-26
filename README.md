@@ -22,7 +22,7 @@ Decentralized annotations
 └─── src: Source code for the annotation plugins
 	  └─ annotations-sparql.js: Annotation plugin for query-based access using custom middleware
 	  └─ annotations.js: Annotation plugin for file-based access using Solid
-      └─ util.js: Helper module containing extra code for rangy
+	  └─ util.js: Helper module containing extra code for rangy
 ```
 ## Annotation plugins
 The plugins are written as bookmarklets so that they can used on any website. In reality, it should be installed as a plugin (after some minor changes). There are two plugins: one for query-based access and another for file-based access.
