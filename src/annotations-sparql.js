@@ -11,8 +11,8 @@ const util = require("./util.js");
 css_files = [
   "https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css", // font awesome
   "//cdn.jsdelivr.net/npm/medium-editor@latest/dist/css/medium-editor.min.css", // core medium editor CSS
-  "https://www.dropbox.com/s/102ds8wnn9kscqm/flat-theme.css?raw=1", // medium theme CSS (can be swapped)
-  "https://www.dropbox.com/s/azniofmg3t0ai9o/annotations.css?raw=1"
+  "https://vanhoucke.me/annotationscripts/assets/themes/flat-theme.css", // medium theme CSS (can be swapped)
+  "https://vanhoucke.me/annotationscripts/assets/annotations.css"
 ]; // Custom CSS for annotation plugin (e.g. for button to load all annotations)
 
 /** Config **/
